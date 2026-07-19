@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import 'forge-std/Vm.sol';
 
+// shell one-liners below embed single quotes, so double-quoted strings are required
+// solhint-disable quotes
 abstract contract FfiUtils {
   Vm private constant vm = Vm(address(bytes20(uint160(uint256(keccak256('hevm cheat code'))))));
 
