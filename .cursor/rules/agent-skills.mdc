@@ -1,0 +1,24 @@
+---
+description: Index of installed agent skills (in .agents/skills/) and the conditions under which each must be loaded and followed. Consult this whenever working on Solidity/Foundry contracts, security review, fuzzing, or upgradeability in this repo.
+alwaysApply: true
+---
+
+# Agent Skills for aave-v3-origin
+
+This repository ships reusable **agent skills** under `.agents/skills/` (installed via `npx skills`, tracked in `skills-lock.json`). Each skill is a `SKILL.md` with detailed, step-by-step instructions.
+
+When the current task matches a trigger below, you MUST read the referenced `SKILL.md` (and its `references/`, `scripts/`, `templates/`) and follow it before acting. Prefer the skill's guidance over ad-hoc approaches. Skills may run shell commands and edit files (e.g. `foundry.toml`) — only invoke them for their stated purpose and review changes.
+
+## Skill catalog and when to use each
+
+- **`.agents/skills/solidity-auditor/SKILL.md`** — Load for any **security review / audit** of Solidity code. Triggers: "audit", "review this contract", "check for security", "find vulnerabilities", reviewing risk in `src/contracts/**`. Excludes `interfaces/`, `lib/`, `mocks/`, `test/`, `*.t.sol`.
+- **`.agents/skills/x-ray/SKILL.md`** — Load for **pre-audit readiness / protocol summarization**. Triggers: "x-ray", "audit readiness", "readiness report", "pre-audit report", "prep this protocol", "summarize this protocol". Produces an `x-ray/` report (threat model, invariants, integrations, test analysis).
+- **`.agents/skills/fizz/SKILL.md`** — Load when building **stateful fuzzing / invariant suites** for Echidna or Medusa (this repo already has `tests/invariants/`, `medusa.json`, and `make echidna`/`make medusa`). Triggers: "fizz", "generate fuzz suite", "build fuzz harness", "stateful fuzzing", "property testing", "invariant suite". Note: it may add a `[profile.fuzz]` block to `foundry.toml` — review before committing.
+- **`.agents/skills/upgrade-solidity-contracts/SKILL.md`** — Load for **upgradeability** work: UUPS/Transparent/Beacon proxies, initializers vs constructors, storage-layout safety, ERC-7201 namespaced storage, validating upgrade safety. Highly relevant here — Aave uses proxy `*Instance` contracts and initializers.
+- **`.agents/skills/develop-secure-contracts/SKILL.md`** — Load when **integrating OpenZeppelin components** (ERC20/721/1155, `AccessControl`/`Ownable`, `Pausable`/`ReentrancyGuard`, governance, account abstraction) into contracts. Emphasizes library-first patterns.
+- **`.agents/skills/setup-solidity-contracts/SKILL.md`** — Load when **setting up / configuring** a Solidity project or adding OpenZeppelin deps and Foundry `remappings`.
+
+## Notes
+
+- This is a Foundry/Solidity codebase; there is no long-running app. Build with `forge build`, test with `make test`, lint with `npm run lint` (see `AGENTS.md`).
+- Manage skills with `npx skills list`, `npx skills update`, `npx skills add <owner/repo@skill>`.
