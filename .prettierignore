@@ -3,7 +3,10 @@ lib
 cache
 node_modules
 report
+reports
 _corpus
 crytic-export
 snapshots
 audits
+# vendored agent skills (managed by npx skills; formatting would break hash verification)
+.agents
