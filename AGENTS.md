@@ -17,7 +17,7 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - Coverage: `make coverage` (needs `lcov`/`genhtml`).
 
 ### Agent skills
-- Reusable agent skills are installed under `.agents/skills/` (via `npx skills`, tracked in `skills-lock.json`) and indexed by the always-on Cursor rule `.cursor/rules/agent-skills.mdc`. Load the relevant `SKILL.md` when its trigger matches: `solidity-auditor` (security review), `x-ray` (pre-audit readiness report), `fizz` (Echidna/Medusa invariant suites — note it may add a `[profile.fuzz]` block to `foundry.toml`), `upgrade-solidity-contracts` (proxy/upgrade/storage-layout work), `develop-secure-contracts` and `setup-solidity-contracts` (OpenZeppelin integration/setup).
+- Reusable agent skills are installed under `.agents/skills/` (via `npx skills`, tracked in `skills-lock.json`) and indexed by the always-on Cursor rule `.cursor/rules/agent-skills.mdc`. Load the relevant `SKILL.md` when its trigger matches: `solidity-auditor` (whole-file/repo security review), `differential-review` (security review of a PR/diff), `entry-point-analyzer` (entry-point / access-control mapping), `token-integration-analyzer` (token listing / weird-token checks), `fp-check` (verify a suspected finding), `variant-analysis` (hunt variants of a confirmed bug), `x-ray` (pre-audit readiness report), `fizz` (Echidna/Medusa invariant suites — note it may add a `[profile.fuzz]` block to `foundry.toml`), `upgrade-solidity-contracts` (proxy/upgrade/storage-layout work), `develop-secure-contracts` and `setup-solidity-contracts` (OpenZeppelin integration/setup).
 - Manage with `npx skills list` / `npx skills update`.
 
 ### Non-obvious gotchas
