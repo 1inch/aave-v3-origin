@@ -1,5 +1,10 @@
 import { useState } from "react";
 import { Slider, Stat } from "../components/Controls";
+import { SrcRef } from "../components/SrcRef";
+import {
+  borrowRate as calcBorrowRate,
+  supplyRate as calcSupplyRate,
+} from "../lib/interestRate";
 
 const CW = 640;
 const CH = 300;
@@ -14,14 +19,10 @@ export function RateModel() {
   const [u, setU] = useState(72);
 
   // Mirrors DefaultReserveInterestRateStrategyV2.calculateInterestRates
-  const borrowRate = (util: number) => {
-    if (util <= 0) return base;
-    if (util <= uopt) return base + (slope1 * util) / uopt;
-    const excess = (util - uopt) / (100 - uopt);
-    return base + slope1 + slope2 * excess;
-  };
-  const supplyRate = (util: number) =>
-    (borrowRate(util) * util * (1 - rf / 100)) / 100;
+  // (float model shared with the vitest suite: src/lib/interestRate.ts)
+  const params = { optimalUsageRatio: uopt, baseRate: base, slope1, slope2 };
+  const borrowRate = (util: number) => calcBorrowRate(util, params);
+  const supplyRate = (util: number) => calcSupplyRate(util, params, rf);
 
   const maxY = Math.max(borrowRate(100), 1) * 1.08;
   const x = (util: number) => PAD.l + (util / 100) * (CW - PAD.l - PAD.r);
@@ -270,9 +271,11 @@ export function RateModel() {
             <strong>immutable</strong> on the Pool. Rates are capped: base +
             slope1 + slope2 ≤ <code>MAX_BORROW_RATE</code> (1000%).
           </div>
-          <div className="src-ref">
-            src/contracts/misc/DefaultReserveInterestRateStrategyV2.sol
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/misc/DefaultReserveInterestRateStrategyV2.sol",
+            ]}
+          />
         </div>
       </div>
     </div>

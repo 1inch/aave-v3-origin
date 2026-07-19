@@ -1,8 +1,25 @@
 # Aave v3.7 Explainer — Plan v2
 
-Status: **v1 shipped** (20 slides, interactive). This document reviews v1, records the research
-behind the review, and defines the improved roadmap. It is the working plan for the explainer going
-forward.
+Status: **v2 largely executed** (28 slides). v1 shipped the 20-slide interactive baseline; this
+document reviews it, records the research behind the review, and defines the improved roadmap.
+
+## 0. Execution status
+
+- **Done — Phase 2:** C0 (accuracy corrections), C1 (bitmaps & storage-layout slide), C2 (GitHub
+  source deep-links via `SrcRef`), C3 (glossary slide + `Term` hover tooltips), C4 (searchable
+  error catalog), C5 (L2Pool calldata slide with live `bytes32` packing), C6 (Umbrella deep-dive on
+  the bad-debt slide), C7 (listing-pipeline slide).
+- **Done — Phase 3:** U1 (focus management on slide change, `aria-live` step notes,
+  `prefers-reduced-motion`), U2 (knowledge checks after Foundations / Core flows / eModes & v3.7),
+  U3 (Esc toggles the contents grid), U4 (Ctrl/Cmd+K search palette over slides, glossary and
+  errors).
+- **Done — Phase 4:** E1 (CI workflow `.github/workflows/explainer.yml`: oxlint + vitest + build,
+  path-filtered), E2 (41 vitest cases over `src/lib`: rate curve, health factor, close-factor/dust
+  rules, isolated-eMode LTV resolution, calldata packing — simulators now consume these shared
+  modules), E3 (GitHub Pages deploy job on main; requires Pages enabled in repo settings),
+  E4 (version content extracted to `src/data/versions.ts` + documented update checklist).
+- **Remaining (deliberately deferred):** C8 (periphery slide: stata/gateway/rewards), C9 (GHO
+  card), U5 (print/PDF stylesheet), U6 (touch/swipe + SVG pan on mobile).
 
 ---
 

@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Slider, Stat } from "../components/Controls";
+import { SrcRef } from "../components/SrcRef";
+import { Term } from "../components/Term";
+import { simulateLiquidation } from "../lib/liquidation";
 
 const fmt = (v: number) => `$${Math.round(v).toLocaleString("en-US")}`;
 
@@ -11,36 +14,28 @@ export function LiquidationMath() {
   const [feePct, setFeePct] = useState(10);
   const [cover, setCover] = useState(2500);
 
-  const hf = (collateral * (lt / 100)) / debt;
-  const liquidatable = hf < 1;
-
-  // Close factor logic — LiquidationLogic.executeLiquidationCall (v3.3+)
-  const smallPosition = collateral < 2000 || debt < 2000;
-  const fullCloseFactor = hf <= 0.95 || smallPosition;
-  const maxLiquidatable = fullCloseFactor ? debt : debt * 0.5;
-
-  const requested = Math.min(cover, maxLiquidatable);
-  let actualDebt = requested;
-  let seized = actualDebt * (1 + bonus / 100);
-  if (seized > collateral) {
-    seized = collateral;
-    actualDebt = collateral / (1 + bonus / 100);
-  }
-  const basePortion = seized / (1 + bonus / 100);
-  const bonusPortion = seized - basePortion;
-  const fee = (bonusPortion * feePct) / 100;
-  const toLiquidator = seized - fee;
-
-  const leftoverDebt = debt - actualDebt;
-  const leftoverColl = collateral - seized;
-  const dustViolation =
-    liquidatable &&
-    leftoverDebt > 0.5 &&
-    leftoverColl > 0.5 &&
-    (leftoverDebt < 1000 || leftoverColl < 1000);
-  const badDebt =
-    liquidatable && !dustViolation && leftoverColl <= 0.5 && leftoverDebt > 0.5;
-  const profit = toLiquidator - actualDebt;
+  // Shared with the vitest suite: src/lib/liquidation.ts
+  const r = simulateLiquidation({
+    collateral,
+    debt,
+    ltPct: lt,
+    bonusPct: bonus,
+    protocolFeePct: feePct,
+    debtToCover: cover,
+  });
+  const hf = r.healthFactor;
+  const liquidatable = r.liquidatable;
+  const fullCloseFactor = r.fullCloseFactor;
+  const maxLiquidatable = r.maxLiquidatableDebt;
+  const actualDebt = r.actualDebtLiquidated;
+  const seized = r.collateralSeized;
+  const fee = r.protocolFee;
+  const toLiquidator = r.toLiquidator;
+  const leftoverDebt = r.leftoverDebt;
+  const leftoverColl = r.leftoverCollateral;
+  const dustViolation = r.dustViolation;
+  const badDebt = r.createsBadDebt;
+  const profit = r.liquidatorProfit;
 
   const barMax = Math.max(collateral, debt);
   const w = (v: number) => `${Math.max(0, (v / barMax) * 100)}%`;
@@ -53,8 +48,12 @@ export function LiquidationMath() {
       </h2>
       <p className="slide-subtitle">
         A single-reserve position, priced in USD like the contract prices
-        everything in base currency. Push the position underwater and watch the
-        close factor, bonus split and dust rules react.
+        everything in <Term t="base currency">base currency</Term>. Push the
+        position underwater and watch the{" "}
+        <Term t="close factor">close factor</Term>, bonus split and dust rules
+        react. <em>Model simplifications:</em> one collateral + one debt
+        reserve, prices fixed at 1, float math instead of ray/wad, no eMode
+        LT/bonus override.
       </p>
 
       <div className="cols c2">
@@ -317,6 +316,12 @@ export function LiquidationMath() {
               liquidator always absorbs the rounding loss.
             </p>
           </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/libraries/logic/LiquidationLogic.sol",
+              "docs/3.7/liquidation-rounding.md",
+            ]}
+          />
         </div>
       </div>
     </div>

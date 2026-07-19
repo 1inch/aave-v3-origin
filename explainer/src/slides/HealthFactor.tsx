@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { Slider, Stat } from "../components/Controls";
 import { HFGauge } from "../components/HFGauge";
+import { SrcRef } from "../components/SrcRef";
+import { Term } from "../components/Term";
+import {
+  healthFactor,
+  borrowHeadroom,
+  priceDropToLiquidation,
+} from "../lib/healthFactor";
 
 export function HealthFactor() {
   const [collateral, setCollateral] = useState(10000);
@@ -9,13 +16,9 @@ export function HealthFactor() {
   const [debt, setDebt] = useState(6000);
 
   const effLtv = Math.min(ltv, lt);
-  const hf = debt === 0 ? Infinity : (collateral * (lt / 100)) / debt;
-  const borrowCap = (collateral * effLtv) / 100;
-  const headroom = Math.max(0, borrowCap - debt);
-  const liqDrop =
-    debt === 0
-      ? 100
-      : Math.max(0, (1 - debt / (collateral * (lt / 100))) * 100);
+  const hf = healthFactor(collateral, lt, debt);
+  const headroom = borrowHeadroom(collateral, effLtv, debt);
+  const liqDrop = priceDropToLiquidation(collateral, lt, debt);
 
   const barW = 560;
   const scale = (v: number) =>
@@ -29,8 +32,14 @@ export function HealthFactor() {
         account
       </h2>
       <p className="slide-subtitle">
-        Two thresholds bound every position: <strong>LTV</strong> caps what you
-        can <em>open</em>, the higher <strong>liquidation threshold</strong>{" "}
+        Two thresholds bound every position:{" "}
+        <Term t="LTV">
+          <strong>LTV</strong>
+        </Term>{" "}
+        caps what you can <em>open</em>, the higher{" "}
+        <Term t="liquidation threshold">
+          <strong>liquidation threshold</strong>
+        </Term>{" "}
         decides when you can be <em>closed</em>. The gap between them is your
         safety buffer.
       </p>
@@ -213,10 +222,10 @@ export function HealthFactor() {
               health factor.
             </li>
           </ul>
-          <div className="src-ref">
-            src/contracts/protocol/libraries/logic/GenericLogic.sol ·
-            calculateUserAccountData()
-          </div>
+          <SrcRef
+            paths={["src/contracts/protocol/libraries/logic/GenericLogic.sol"]}
+            note="calculateUserAccountData()"
+          />
         </div>
       </div>
     </div>

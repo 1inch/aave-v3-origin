@@ -1,38 +1,38 @@
 import { useState } from "react";
 import { Toggle, Stat } from "../components/Controls";
 import { CodeBlock } from "../components/CodeBlock";
+import { SrcRef } from "../components/SrcRef";
+import { getUserReserveLtv, isEModeEntryBlocked } from "../lib/emode";
+import type { EModeAsset } from "../lib/emode";
 
-type Asset = {
+type Asset = EModeAsset & {
   sym: string;
   value: number;
-  inBitmap: boolean;
-  baseLtv: number;
-  emodeLtv: number;
 };
 
 const ASSETS: Asset[] = [
-  { sym: "WETH", value: 10000, inBitmap: true, baseLtv: 80.5, emodeLtv: 93 },
-  { sym: "wstETH", value: 4000, inBitmap: true, baseLtv: 78.5, emodeLtv: 93 },
-  { sym: "LINK", value: 5000, inBitmap: false, baseLtv: 66, emodeLtv: 66 },
+  {
+    sym: "WETH",
+    value: 10000,
+    inCollateralBitmap: true,
+    baseLtv: 80.5,
+    emodeLtv: 93,
+  },
+  {
+    sym: "wstETH",
+    value: 4000,
+    inCollateralBitmap: true,
+    baseLtv: 78.5,
+    emodeLtv: 93,
+  },
+  {
+    sym: "LINK",
+    value: 5000,
+    inCollateralBitmap: false,
+    baseLtv: 66,
+    emodeLtv: 66,
+  },
 ];
-
-function effectiveLtv(
-  a: Asset,
-  inEMode: boolean,
-  isolated: boolean
-): { ltv: number; reason: string; branch: 1 | 2 | 3 } {
-  if (inEMode && a.inBitmap) {
-    return {
-      ltv: a.emodeLtv,
-      reason: `in collateralBitmap → eMode LTV ${a.emodeLtv}%`,
-      branch: 1,
-    };
-  }
-  if (inEMode && isolated && !a.inBitmap) {
-    return { ltv: 0, reason: "outside bitmap + isolated → LTV 0", branch: 2 };
-  }
-  return { ltv: a.baseLtv, reason: `base LTV ${a.baseLtv}%`, branch: 3 };
-}
 
 export function IsolatedEMode() {
   const [isolated, setIsolated] = useState(true);
@@ -44,9 +44,16 @@ export function IsolatedEMode() {
   });
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Shared with the vitest suite: src/lib/emode.ts
   const entryBlocked =
-    !inEMode && isolated && ASSETS.some((a) => enabled[a.sym] && !a.inBitmap);
-  const blockingAsset = ASSETS.find((a) => enabled[a.sym] && !a.inBitmap)?.sym;
+    !inEMode &&
+    isEModeEntryBlocked(
+      ASSETS.map((a) => ({ asset: a, enabledAsCollateral: enabled[a.sym] })),
+      isolated
+    );
+  const blockingAsset = ASSETS.find(
+    (a) => enabled[a.sym] && !a.inCollateralBitmap
+  )?.sym;
 
   const tryEnterEMode = () => {
     setFeedback(null);
@@ -61,7 +68,7 @@ export function IsolatedEMode() {
 
   const toggleCollateral = (a: Asset, next: boolean) => {
     setFeedback(null);
-    if (next && inEMode && isolated && !a.inBitmap) {
+    if (next && getUserReserveLtv(a, inEMode, isolated).ltv === 0) {
       setFeedback(
         `setUserUseReserveAsCollateral(${a.sym}, true) does not enable — validateUseAsCollateral returns false because getUserReserveLtv(${a.sym}) == 0 inside the isolated eMode.`
       );
@@ -72,7 +79,7 @@ export function IsolatedEMode() {
 
   const borrowPower = ASSETS.reduce((sum, a) => {
     if (!enabled[a.sym]) return sum;
-    return sum + (a.value * effectiveLtv(a, inEMode, isolated).ltv) / 100;
+    return sum + (a.value * getUserReserveLtv(a, inEMode, isolated).ltv) / 100;
   }, 0);
 
   return (
@@ -131,7 +138,7 @@ export function IsolatedEMode() {
           </div>
 
           {ASSETS.map((a) => {
-            const eff = effectiveLtv(a, inEMode, isolated);
+            const eff = getUserReserveLtv(a, inEMode, isolated);
             const isOn = enabled[a.sym];
             return (
               <div className="asset-row" key={a.sym}>
@@ -139,8 +146,8 @@ export function IsolatedEMode() {
                 <span style={{ color: "var(--text-dim)" }}>
                   ${a.value.toLocaleString("en-US")}
                 </span>
-                <span className={`pill ${a.inBitmap ? "teal" : ""}`}>
-                  {a.inBitmap ? "in bitmap" : "outside bitmap"}
+                <span className={`pill ${a.inCollateralBitmap ? "teal" : ""}`}>
+                  {a.inCollateralBitmap ? "in bitmap" : "outside bitmap"}
                 </span>
                 <span className="spacer" />
                 <span
@@ -240,10 +247,12 @@ return reserveData.configuration.getLtv();`}
               pool <em>or emergency</em> admins.
             </li>
           </ul>
-          <div className="src-ref">
-            docs/3.7/isolated-emode.md ·
-            src/contracts/protocol/libraries/logic/ValidationLogic.sol
-          </div>
+          <SrcRef
+            paths={[
+              "docs/3.7/isolated-emode.md",
+              "src/contracts/protocol/libraries/logic/ValidationLogic.sol",
+            ]}
+          />
         </div>
       </div>
     </div>

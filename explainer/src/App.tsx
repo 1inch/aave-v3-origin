@@ -4,6 +4,7 @@ import { TitleSlide } from "./slides/TitleSlide";
 import { WhatIsAave } from "./slides/WhatIsAave";
 import { Architecture } from "./slides/Architecture";
 import { PoolLibraries } from "./slides/PoolLibraries";
+import { Bitmaps } from "./slides/Bitmaps";
 import { Tokenization } from "./slides/Tokenization";
 import { Indexes } from "./slides/Indexes";
 import { RateModel } from "./slides/RateModel";
@@ -17,9 +18,16 @@ import { EModes } from "./slides/EModes";
 import { IsolatedEMode } from "./slides/IsolatedEMode";
 import { V37Changes } from "./slides/V37Changes";
 import { FlashLoans } from "./slides/FlashLoans";
+import { L2PoolSlide } from "./slides/L2PoolSlide";
+import { ListingPipeline } from "./slides/ListingPipeline";
 import { Security } from "./slides/Security";
 import { Timeline } from "./slides/Timeline";
 import { Resources } from "./slides/Resources";
+import { GlossarySlide } from "./slides/GlossarySlide";
+import { ErrorsCatalog } from "./slides/ErrorsCatalog";
+import { QuizFoundations, QuizCoreFlows, QuizEModes } from "./slides/Quizzes";
+import { SearchPalette } from "./components/SearchPalette";
+import { buildPaletteIndex } from "./lib/paletteIndex";
 
 type SlideDef = { id: string; title: string; component: ComponentType };
 type SectionDef = { title: string; slides: SlideDef[] };
@@ -45,6 +53,11 @@ const SECTIONS: SectionDef[] = [
         component: PoolLibraries,
       },
       {
+        id: "bitmaps",
+        title: "Bitmaps & storage layout",
+        component: Bitmaps,
+      },
+      {
         id: "tokenization",
         title: "Tokenization: aTokens & debt tokens",
         component: Tokenization,
@@ -58,6 +71,11 @@ const SECTIONS: SectionDef[] = [
         id: "rate-model",
         title: "The interest rate model",
         component: RateModel,
+      },
+      {
+        id: "quiz-foundations",
+        title: "Knowledge check: Foundations",
+        component: QuizFoundations,
       },
     ],
   },
@@ -82,6 +100,11 @@ const SECTIONS: SectionDef[] = [
         component: LiquidationMath,
       },
       { id: "bad-debt", title: "Bad debt & the deficit", component: BadDebt },
+      {
+        id: "quiz-core-flows",
+        title: "Knowledge check: Core flows",
+        component: QuizCoreFlows,
+      },
     ],
   },
   {
@@ -98,6 +121,11 @@ const SECTIONS: SectionDef[] = [
         title: "v3.7 removals & simplification",
         component: V37Changes,
       },
+      {
+        id: "quiz-emodes",
+        title: "Knowledge check: eModes & v3.7",
+        component: QuizEModes,
+      },
     ],
   },
   {
@@ -107,6 +135,16 @@ const SECTIONS: SectionDef[] = [
         id: "flash-loans",
         title: "Flash loans & UX features",
         component: FlashLoans,
+      },
+      {
+        id: "l2pool",
+        title: "L2Pool & calldata compression",
+        component: L2PoolSlide,
+      },
+      {
+        id: "listing-pipeline",
+        title: "How an asset gets listed",
+        component: ListingPipeline,
       },
       {
         id: "security",
@@ -125,11 +163,20 @@ const SECTIONS: SectionDef[] = [
       },
     ],
   },
+  {
+    title: "Reference",
+    slides: [
+      { id: "glossary", title: "Glossary", component: GlossarySlide },
+      { id: "errors", title: "Error catalog", component: ErrorsCatalog },
+    ],
+  },
 ];
 
 const FLAT: (SlideDef & { section: string })[] = SECTIONS.flatMap((s) =>
   s.slides.map((sl) => ({ ...sl, section: s.title }))
 );
+
+const PALETTE_INDEX = buildPaletteIndex(FLAT);
 
 function slideIndexFromHash(): number {
   const id = window.location.hash.replace(/^#\/?/, "");
@@ -141,6 +188,7 @@ export default function App() {
   const [index, setIndex] = useState(slideIndexFromHash);
   const [dir, setDir] = useState<"next" | "prev">("next");
   const [tocOpen, setTocOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   const goTo = useCallback((i: number) => {
@@ -152,9 +200,20 @@ export default function App() {
     setTocOpen(false);
   }, []);
 
+  const goToId = useCallback(
+    (id: string) => {
+      const i = FLAT.findIndex((s) => s.id === id);
+      if (i >= 0) goTo(i);
+    },
+    [goTo]
+  );
+
   useEffect(() => {
     window.history.replaceState(null, "", `#/${FLAT[index].id}`);
     viewportRef.current?.scrollTo({ top: 0 });
+    // Move focus to the slide container so keyboard/screen-reader users land
+    // on the new content after navigating.
+    viewportRef.current?.focus({ preventScroll: true });
   }, [index]);
 
   useEffect(() => {
@@ -165,6 +224,15 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((o) => !o);
+        return;
+      }
+      if (paletteOpen) {
+        if (e.key === "Escape") setPaletteOpen(false);
+        return;
+      }
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       if (e.key === "ArrowRight" || e.key === "PageDown") {
@@ -180,12 +248,12 @@ export default function App() {
       } else if (e.key === "t" || e.key === "T") {
         setTocOpen((o) => !o);
       } else if (e.key === "Escape") {
-        setTocOpen(false);
+        setTocOpen((o) => !o);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, goTo]);
+  }, [index, goTo, paletteOpen]);
 
   const slide = FLAT[index];
   const SlideComponent = slide.component;
@@ -212,6 +280,13 @@ export default function App() {
           {slide.section} · {slide.title}
         </div>
         <div className="header-spacer" />
+        <button
+          className="icon-btn"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Search (Ctrl+K)"
+        >
+          ⌕ Search
+        </button>
         <button className="icon-btn" onClick={() => setTocOpen((o) => !o)}>
           ☰ Contents
         </button>
@@ -237,11 +312,12 @@ export default function App() {
         <div
           key={slide.id}
           ref={viewportRef}
+          tabIndex={-1}
           className={`slide-viewport ${
             dir === "next" ? "slide-enter-next" : "slide-enter-prev"
           }`}
         >
-          <section className="slide">
+          <section className="slide" aria-label={slide.title}>
             <SlideComponent />
           </section>
         </div>
@@ -278,6 +354,14 @@ export default function App() {
             ))}
           </div>
         )}
+
+        {paletteOpen && (
+          <SearchPalette
+            entries={PALETTE_INDEX}
+            onNavigate={goToId}
+            onClose={() => setPaletteOpen(false)}
+          />
+        )}
       </main>
 
       <footer className="deck-footer">
@@ -288,7 +372,8 @@ export default function App() {
           <div className="progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <span className="kbd-hint">
-          <kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>T</kbd> contents
+          <kbd>←</kbd> <kbd>→</kbd> navigate · <kbd>T</kbd> contents ·{" "}
+          <kbd>Ctrl</kbd>+<kbd>K</kbd> search
         </span>
       </footer>
     </div>

@@ -310,7 +310,7 @@ export function StepFlow({
           );
         })}
       </svg>
-      <div className="stepflow-note">
+      <div className="stepflow-note" aria-live="polite">
         <div className="t">
           {current + 1}. {cur.title}
         </div>

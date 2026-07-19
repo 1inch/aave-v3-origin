@@ -1,4 +1,6 @@
 import { CodeBlock } from "../components/CodeBlock";
+import { SrcRef } from "../components/SrcRef";
+import { Term } from "../components/Term";
 
 export function BadDebt() {
   return (
@@ -48,15 +50,54 @@ export function BadDebt() {
         <div className="card tone-good">
           <h3>3 · Eliminate</h3>
           <p>
-            The <strong>Umbrella</strong> entity (registered on the
-            PoolAddressesProvider — Aave's staking-based safety module) calls{" "}
-            <code>eliminateReserveDeficit(asset, amount)</code>, burning its own
-            aTokens to write the deficit down.
+            The <Term t="Umbrella">Umbrella</Term> contract — resolved by the
+            Pool via{" "}
+            <code>ADDRESSES_PROVIDER.getAddress(&#39;UMBRELLA&#39;)</code> —
+            calls <code>eliminateReserveDeficit(asset, amount)</code>, burning
+            aTokens it holds to write the deficit down.
           </p>
           <p>
             Since v3.5 it returns the amount actually covered, capped at the
             outstanding deficit.
           </p>
+        </div>
+      </div>
+
+      <div className="card tone-teal" style={{ marginTop: 16 }}>
+        <h3>
+          Where the coverage comes from: Umbrella, the automated safety module
+        </h3>
+        <div className="cols c4" style={{ marginTop: 10 }}>
+          <div>
+            <p>
+              <strong>1 · Stake.</strong> Users stake wrapped aTokens (waTokens,
+              i.e. <code>StataTokenV2</code>) or GHO into per-reserve{" "}
+              <code>StakeToken</code>s, earning Aave yield plus safety
+              incentives.
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>2 · First loss: deficit offset.</strong> A DAO-funded
+              buffer absorbs deficits first — stakers are not the first-loss
+              layer.
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>3 · Slash.</strong> If a recorded deficit exceeds the
+              offset, Umbrella slashes the corresponding StakeToken
+              automatically — no governance vote — and burns the assets via{" "}
+              <code>eliminateReserveDeficit</code>.
+            </p>
+          </div>
+          <div>
+            <p>
+              <strong>4 · Isolated risk.</strong> Coverage is per asset and
+              network: staked aUSDC only ever covers USDC deficits on that
+              market. Unstaking has a 20-day cooldown.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -104,9 +145,12 @@ function eliminateReserveDeficit(address asset, uint256 amount)
             sides) so the bad-debt check can actually fire — leaving $0.50 of
             collateral would otherwise dodge the cleanup.
           </div>
-          <div className="src-ref">
-            docs/3.3/Aave-v3.3-features.md · docs/3.7/liquidation-rounding.md
-          </div>
+          <SrcRef
+            paths={[
+              "docs/3.3/Aave-v3.3-features.md",
+              "docs/3.7/liquidation-rounding.md",
+            ]}
+          />
         </div>
       </div>
     </div>

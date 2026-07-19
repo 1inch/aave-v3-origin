@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { BitRow } from "../components/Controls";
+import { SrcRef } from "../components/SrcRef";
+import { Term } from "../components/Term";
 
 const RESERVES = [
   "WETH",
@@ -65,9 +67,13 @@ export function EModes() {
         correlated assets
       </h2>
       <p className="slide-subtitle">
-        An eMode category is a named bundle of{" "}
-        <strong>LTV / liquidation threshold / bonus</strong> plus three 128-bit
-        bitmaps over the reserves list. A user opts in with{" "}
+        An <Term t="eMode">eMode</Term> category is a named bundle of{" "}
+        <strong>
+          <Term t="LTV">LTV</Term> /{" "}
+          <Term t="liquidation threshold">liquidation threshold</Term> /{" "}
+          <Term t="liquidation bonus">bonus</Term>
+        </strong>{" "}
+        plus three 128-bit bitmaps over the reserves list. A user opts in with{" "}
         <code>setUserEMode(id)</code>; category 0 means "no eMode". Since v3.2's{" "}
         <em>liquid eModes</em>, any asset can belong to any number of
         categories.
@@ -119,10 +125,13 @@ export function EModes() {
           <p style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 10 }}>
             {c.blurb}
           </p>
-          <div className="src-ref">
-            DataTypes.EModeCategory ·
-            EModeConfiguration.isReserveEnabledOnBitmap()
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/libraries/types/DataTypes.sol",
+              "src/contracts/protocol/libraries/configuration/EModeConfiguration.sol",
+            ]}
+            note="EModeCategory struct · isReserveEnabledOnBitmap()"
+          />
         </div>
 
         <div>

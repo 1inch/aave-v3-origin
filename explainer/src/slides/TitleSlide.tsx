@@ -64,17 +64,21 @@ export function TitleSlide() {
         <div className="card">
           <h3>04 · Ecosystem</h3>
           <p>
-            Flash loans, multicall &amp; position managers, governance roles,
-            the security model, and the full v3.0 → v3.7 version timeline.
+            Flash loans, L2Pool calldata compression, the listing pipeline,
+            governance roles, the security model, and the full v3.0 → v3.7
+            version timeline.
           </p>
         </div>
       </div>
 
       <p className="note" style={{ marginTop: 26 }}>
         Navigate with <strong>→</strong> / <strong>←</strong>, press{" "}
-        <strong>T</strong> for the table of contents. Every diagram with a{" "}
-        <em>Next step</em> button can be stepped through; every chart with
-        sliders is live.
+        <strong>T</strong> for the table of contents and <strong>Ctrl+K</strong>{" "}
+        to search slides, glossary terms and errors. Each section ends in a
+        short knowledge check; a glossary and a searchable error catalog live in
+        the <em>Reference</em> section. Dotted-underlined terms show definitions
+        on hover. Every diagram with a <em>Next step</em> button can be stepped
+        through; every chart with sliders is live.
       </p>
     </div>
   );

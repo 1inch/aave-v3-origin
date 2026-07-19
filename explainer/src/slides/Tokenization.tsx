@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Slider, Stat } from "../components/Controls";
 import { CodeBlock } from "../components/CodeBlock";
+import { SrcRef } from "../components/SrcRef";
+import { Term } from "../components/Term";
 
 export function Tokenization() {
   const [index, setIndex] = useState(1.08);
@@ -18,10 +20,15 @@ export function Tokenization() {
       </h2>
       <p className="slide-subtitle">
         Aave never stores your balance directly. It stores a{" "}
-        <strong>scaled balance</strong> — your share of the pool — and
-        multiplies it by an ever-growing <strong>index</strong> whenever anyone
-        asks. That single trick makes interest accrue to every holder
-        continuously, with zero per-user storage writes.
+        <Term t="scaled balance">
+          <strong>scaled balance</strong>
+        </Term>{" "}
+        — your share of the pool — and multiplies it by an ever-growing{" "}
+        <Term t="index">
+          <strong>index</strong>
+        </Term>{" "}
+        whenever anyone asks. That single trick makes interest accrue to every
+        holder continuously, with zero per-user storage writes.
       </p>
 
       <div className="cols c2">
@@ -116,10 +123,13 @@ function balanceOf(address user) public view returns (uint256) {
   );
 }`}
           />
-          <div className="src-ref">
-            src/contracts/protocol/tokenization/AToken.sol ·
-            VariableDebtToken.sol · libraries/math/TokenMath.sol
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/tokenization/AToken.sol",
+              "src/contracts/protocol/tokenization/VariableDebtToken.sol",
+              "src/contracts/protocol/libraries/math/TokenMath.sol",
+            ]}
+          />
         </div>
       </div>
     </div>

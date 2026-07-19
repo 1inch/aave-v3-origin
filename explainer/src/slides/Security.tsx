@@ -1,3 +1,5 @@
+import { SrcRef } from "../components/SrcRef";
+
 const ROLES: { role: string; holder: string; can: string }[] = [
   {
     role: "POOL_ADMIN",
@@ -26,8 +28,8 @@ const ROLES: { role: string; holder: string; can: string }[] = [
   },
   {
     role: "BRIDGE",
-    holder: "(portals, unused since v3.4 removal)",
-    can: "legacy unbacked mint path — removed",
+    holder: "nobody on current markets",
+    can: "role still defined in ACLManager, but the unbacked/portals flow it gated was removed in v3.4 — vestigial",
   },
 ];
 
@@ -143,10 +145,13 @@ export function Security() {
               <code>certora/</code>.
             </p>
           </div>
-          <div className="src-ref">
-            src/contracts/protocol/configuration/ACLManager.sol · audits/ ·
-            tests/invariants
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/configuration/ACLManager.sol",
+              "audits",
+              "tests/invariants",
+            ]}
+          />
         </div>
       </div>
     </div>

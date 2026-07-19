@@ -1,5 +1,6 @@
 import { StepFlow } from "../components/StepFlow";
 import type { FlowActor, FlowStep } from "../components/StepFlow";
+import { SrcRef } from "../components/SrcRef";
 
 const ACTORS: FlowActor[] = [
   { id: "liq", label: "Liquidator" },
@@ -119,9 +120,9 @@ export function LiquidationFlow() {
           DEFAULT_LIQUIDATION_CLOSE_FACTOR = 50%
         </span>
       </div>
-      <div className="src-ref">
-        src/contracts/protocol/libraries/logic/LiquidationLogic.sol
-      </div>
+      <SrcRef
+        paths={["src/contracts/protocol/libraries/logic/LiquidationLogic.sol"]}
+      />
     </div>
   );
 }

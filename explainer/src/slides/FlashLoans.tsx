@@ -1,5 +1,6 @@
 import { StepFlow } from "../components/StepFlow";
 import type { FlowActor, FlowStep } from "../components/StepFlow";
+import { SrcRef } from "../components/SrcRef";
 
 const ACTORS: FlowActor[] = [
   { id: "receiver", label: "Receiver", sub: "IFlashLoanReceiver" },
@@ -47,7 +48,7 @@ const STEPS: FlowStep[] = [
     label: "premium → accruedToTreasury",
     kind: "mint",
     title: "Fee to the DAO",
-    desc: "Since v3.4, 100% of the flash-loan premium accrues to the treasury (FLASHLOAN_PREMIUM_TO_PROTOCOL is hardcoded 100%). Approved FLASH_BORROWER role addresses pay zero premium.",
+    desc: "The premium (FLASHLOAN_PREMIUM_TOTAL) is governance-set per market via updateFlashloanPremium — 0.05% on current production markets. Since v3.4 it accrues 100% to the treasury (FLASHLOAN_PREMIUM_TO_PROTOCOL is hardcoded). Approved FLASH_BORROWER role addresses pay zero premium.",
   },
 ];
 
@@ -103,10 +104,12 @@ export function FlashLoans() {
           </p>
         </div>
       </div>
-      <div className="src-ref">
-        src/contracts/protocol/libraries/logic/FlashLoanLogic.sol ·
-        src/contracts/misc/flashloan
-      </div>
+      <SrcRef
+        paths={[
+          "src/contracts/protocol/libraries/logic/FlashLoanLogic.sol",
+          "src/contracts/misc/flashloan",
+        ]}
+      />
     </div>
   );
 }

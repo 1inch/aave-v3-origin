@@ -1,3 +1,5 @@
+import { SrcRef } from "../components/SrcRef";
+
 export function V37Changes() {
   return (
     <div>
@@ -105,10 +107,14 @@ export function V37Changes() {
         live configs before switching implementations (Pool rev 10 → 11,
         Configurator rev 7 → 8).
       </div>
-      <div className="src-ref">
-        docs/3.7/Aave-v3.7-changelog.md · mode-removal.md · sentinel-removal.md
-        · drop-reserve-removal.md
-      </div>
+      <SrcRef
+        paths={[
+          "docs/3.7/Aave-v3.7-changelog.md",
+          "docs/3.7/mode-removal.md",
+          "docs/3.7/sentinel-removal.md",
+          "docs/3.7/drop-reserve-removal.md",
+        ]}
+      />
     </div>
   );
 }

@@ -129,6 +129,17 @@ export function Resources() {
             keep the pool solvent; eModes concentrate leverage safely — and v3.7
             made all of it smaller, stricter and easier to reason about.
           </div>
+          <div className="note pink" style={{ marginTop: 10 }}>
+            Keep going: the{" "}
+            <a href="#/glossary" style={{ color: "var(--aave-teal)" }}>
+              glossary
+            </a>{" "}
+            and the searchable{" "}
+            <a href="#/errors" style={{ color: "var(--aave-teal)" }}>
+              error catalog
+            </a>{" "}
+            in the Reference section are built for day-to-day integration work.
+          </div>
         </div>
       </div>
     </div>

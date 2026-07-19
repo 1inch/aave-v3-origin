@@ -1,0 +1,71 @@
+# Lints, tests and builds the explainer webapp (explainer/), and deploys it
+# to GitHub Pages on pushes to main (requires Pages to be enabled with the
+# "GitHub Actions" source in the repository settings).
+name: Explainer
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - "explainer/**"
+      - ".github/workflows/explainer.yml"
+  push:
+    branches: [main]
+    paths:
+      - "explainer/**"
+      - ".github/workflows/explainer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: explainer
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: explainer/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npx oxlint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: explainer/dist
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

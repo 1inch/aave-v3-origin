@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SrcRef } from "../components/SrcRef";
 
 type Node = {
   id: string;
@@ -25,7 +26,7 @@ const NODES: Node[] = [
     color: "#8a63c8",
     desc: "The address book and upgrade hub of one market.",
     detail:
-      "Immutable anchor of a market: getPool(), getPoolConfigurator(), getPriceOracle(), getACLManager(), getUmbrella(). Owned by governance — setPoolImpl() / setPoolConfiguratorImpl() perform proxy upgrades. Since v3.7 the price-oracle-sentinel entry is no longer read.",
+      "Immutable anchor of a market: getPool(), getPoolConfigurator(), getPriceOracle(), getACLManager(), plus a generic getAddress(bytes32) registry — the Pool looks up Umbrella via getAddress('UMBRELLA'). Owned by governance — setPoolImpl() / setPoolConfiguratorImpl() perform proxy upgrades. Since v3.7 the price-oracle-sentinel entry is no longer read.",
   },
   {
     id: "acl",
@@ -296,10 +297,13 @@ export function Architecture() {
             <code>POOL_REVISION = 11</code> for v3.7) checked by{" "}
             <code>VersionedInitializable</code>.
           </div>
-          <div className="src-ref">
-            src/contracts/protocol/pool · src/contracts/protocol/configuration ·
-            src/contracts/instances
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/pool",
+              "src/contracts/protocol/configuration",
+              "src/contracts/instances",
+            ]}
+          />
         </div>
       </div>
     </div>

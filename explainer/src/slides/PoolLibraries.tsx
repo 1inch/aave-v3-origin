@@ -1,4 +1,5 @@
 import { CodeBlock } from "../components/CodeBlock";
+import { SrcRef } from "../components/SrcRef";
 
 const LIBS: { name: string; kind: "external" | "internal"; desc: string }[] = [
   {
@@ -128,10 +129,12 @@ mapping(uint8 => DataTypes.EModeCategory) internal _eModeCategories;`}
               ))}
             </tbody>
           </table>
-          <div className="src-ref">
-            src/contracts/protocol/libraries/logic ·
-            src/contracts/protocol/libraries/configuration
-          </div>
+          <SrcRef
+            paths={[
+              "src/contracts/protocol/libraries/logic",
+              "src/contracts/protocol/libraries/configuration",
+            ]}
+          />
         </div>
       </div>
     </div>
