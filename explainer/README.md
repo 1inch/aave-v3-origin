@@ -32,9 +32,10 @@ CI (`.github/workflows/explainer.yml`) lints, tests and builds the app on every 
 
 ## Using the deck
 
-- Navigate with the on-screen buttons or `←` / `→` (also `PageUp` / `PageDown`, `Home`, `End`)
+- Navigate with the on-screen buttons, `←` / `→` (also `PageUp` / `PageDown`, `Home`, `End`), or swipe on touch devices
 - Press `T` (or `Esc`) for the table of contents; every slide is deep-linkable (`#/slide-id`)
 - Press `Ctrl`/`Cmd`+`K` to search slides, glossary terms and protocol errors
+- Open `/?print` (linked from the Contents overlay) for a print/PDF view that renders all slides sequentially, one per page
 - Diagrams with a "Next step" button are step-through sequence diagrams; charts with sliders are live simulations
 - Each section ends with a short knowledge check; the Reference section holds the glossary and a searchable error catalog
 - Dotted-underlined terms show glossary definitions on hover; source references deep-link to the exact file on GitHub

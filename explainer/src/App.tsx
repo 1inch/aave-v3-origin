@@ -1,195 +1,52 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentType } from "react";
-import { TitleSlide } from "./slides/TitleSlide";
-import { WhatIsAave } from "./slides/WhatIsAave";
-import { Architecture } from "./slides/Architecture";
-import { PoolLibraries } from "./slides/PoolLibraries";
-import { Bitmaps } from "./slides/Bitmaps";
-import { Tokenization } from "./slides/Tokenization";
-import { Indexes } from "./slides/Indexes";
-import { RateModel } from "./slides/RateModel";
-import { SupplyFlow } from "./slides/SupplyFlow";
-import { BorrowFlow } from "./slides/BorrowFlow";
-import { HealthFactor } from "./slides/HealthFactor";
-import { LiquidationFlow } from "./slides/LiquidationFlow";
-import { LiquidationMath } from "./slides/LiquidationMath";
-import { BadDebt } from "./slides/BadDebt";
-import { EModes } from "./slides/EModes";
-import { IsolatedEMode } from "./slides/IsolatedEMode";
-import { V37Changes } from "./slides/V37Changes";
-import { FlashLoans } from "./slides/FlashLoans";
-import { L2PoolSlide } from "./slides/L2PoolSlide";
-import { ListingPipeline } from "./slides/ListingPipeline";
-import { Security } from "./slides/Security";
-import { Timeline } from "./slides/Timeline";
-import { Resources } from "./slides/Resources";
-import { GlossarySlide } from "./slides/GlossarySlide";
-import { ErrorsCatalog } from "./slides/ErrorsCatalog";
-import { QuizFoundations, QuizCoreFlows, QuizEModes } from "./slides/Quizzes";
+import { SECTIONS, FLAT, slideIndexFromHash } from "./deck";
 import { SearchPalette } from "./components/SearchPalette";
 import { buildPaletteIndex } from "./lib/paletteIndex";
 
-type SlideDef = { id: string; title: string; component: ComponentType };
-type SectionDef = { title: string; slides: SlideDef[] };
-
-const SECTIONS: SectionDef[] = [
-  {
-    title: "Foundations",
-    slides: [
-      {
-        id: "intro",
-        title: "Aave v3.7 — Developer Explainer",
-        component: TitleSlide,
-      },
-      { id: "what-is-aave", title: "What is Aave?", component: WhatIsAave },
-      {
-        id: "architecture",
-        title: "Contract architecture",
-        component: Architecture,
-      },
-      {
-        id: "pool-libraries",
-        title: "The Pool & its logic libraries",
-        component: PoolLibraries,
-      },
-      {
-        id: "bitmaps",
-        title: "Bitmaps & storage layout",
-        component: Bitmaps,
-      },
-      {
-        id: "tokenization",
-        title: "Tokenization: aTokens & debt tokens",
-        component: Tokenization,
-      },
-      {
-        id: "indexes",
-        title: "Indexes & interest accrual",
-        component: Indexes,
-      },
-      {
-        id: "rate-model",
-        title: "The interest rate model",
-        component: RateModel,
-      },
-      {
-        id: "quiz-foundations",
-        title: "Knowledge check: Foundations",
-        component: QuizFoundations,
-      },
-    ],
-  },
-  {
-    title: "Core flows",
-    slides: [
-      { id: "supply-flow", title: "Supply & withdraw", component: SupplyFlow },
-      { id: "borrow-flow", title: "Borrow & repay", component: BorrowFlow },
-      {
-        id: "health-factor",
-        title: "Health factor & borrowing power",
-        component: HealthFactor,
-      },
-      {
-        id: "liquidation-flow",
-        title: "Liquidations: the flow",
-        component: LiquidationFlow,
-      },
-      {
-        id: "liquidation-math",
-        title: "Liquidations: the math",
-        component: LiquidationMath,
-      },
-      { id: "bad-debt", title: "Bad debt & the deficit", component: BadDebt },
-      {
-        id: "quiz-core-flows",
-        title: "Knowledge check: Core flows",
-        component: QuizCoreFlows,
-      },
-    ],
-  },
-  {
-    title: "eModes & v3.7",
-    slides: [
-      { id: "emodes", title: "Efficiency modes (eModes)", component: EModes },
-      {
-        id: "isolated-emode",
-        title: "Isolated eMode — new in v3.7",
-        component: IsolatedEMode,
-      },
-      {
-        id: "v37-changes",
-        title: "v3.7 removals & simplification",
-        component: V37Changes,
-      },
-      {
-        id: "quiz-emodes",
-        title: "Knowledge check: eModes & v3.7",
-        component: QuizEModes,
-      },
-    ],
-  },
-  {
-    title: "Ecosystem",
-    slides: [
-      {
-        id: "flash-loans",
-        title: "Flash loans & UX features",
-        component: FlashLoans,
-      },
-      {
-        id: "l2pool",
-        title: "L2Pool & calldata compression",
-        component: L2PoolSlide,
-      },
-      {
-        id: "listing-pipeline",
-        title: "How an asset gets listed",
-        component: ListingPipeline,
-      },
-      {
-        id: "security",
-        title: "Governance, risk & security",
-        component: Security,
-      },
-      {
-        id: "timeline",
-        title: "Version history: v3.0 → v3.7",
-        component: Timeline,
-      },
-      {
-        id: "resources",
-        title: "Reading the code & resources",
-        component: Resources,
-      },
-    ],
-  },
-  {
-    title: "Reference",
-    slides: [
-      { id: "glossary", title: "Glossary", component: GlossarySlide },
-      { id: "errors", title: "Error catalog", component: ErrorsCatalog },
-    ],
-  },
-];
-
-const FLAT: (SlideDef & { section: string })[] = SECTIONS.flatMap((s) =>
-  s.slides.map((sl) => ({ ...sl, section: s.title }))
-);
-
 const PALETTE_INDEX = buildPaletteIndex(FLAT);
+const SWIPE_MIN_X = 60;
+const SWIPE_MAX_Y = 80;
 
-function slideIndexFromHash(): number {
-  const id = window.location.hash.replace(/^#\/?/, "");
-  const i = FLAT.findIndex((s) => s.id === id);
-  return i >= 0 ? i : 0;
+function PrintDoc() {
+  useEffect(() => {
+    document.title = "Aave v3.7 Explainer — print view";
+  }, []);
+  return (
+    <div className="print-doc">
+      <div className="print-banner">
+        Print view — every slide rendered sequentially at its default state. Use
+        your browser's Print dialog to save as PDF.{" "}
+        <a href="./#/intro">Back to the interactive deck →</a>
+      </div>
+      {FLAT.map((s, i) => {
+        const Component = s.component;
+        return (
+          <article className="print-slide" key={s.id}>
+            <div className="print-slide-meta">
+              {String(i + 1).padStart(2, "0")} / {FLAT.length} · {s.section} ·{" "}
+              {s.title}
+            </div>
+            <section className="slide">
+              <Component />
+            </section>
+          </article>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function App() {
+  const isPrint = useMemo(
+    () => new URLSearchParams(window.location.search).has("print"),
+    []
+  );
   const [index, setIndex] = useState(slideIndexFromHash);
   const [dir, setDir] = useState<"next" | "prev">("next");
   const [tocOpen, setTocOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const goTo = useCallback((i: number) => {
     const clamped = Math.max(0, Math.min(FLAT.length - 1, i));
@@ -209,20 +66,26 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (isPrint) return;
     window.history.replaceState(null, "", `#/${FLAT[index].id}`);
+    document.title = `${FLAT[index].title} · Aave v3.7 Explainer`;
     viewportRef.current?.scrollTo({ top: 0 });
     // Move focus to the slide container so keyboard/screen-reader users land
     // on the new content after navigating.
     viewportRef.current?.focus({ preventScroll: true });
-  }, [index]);
+  }, [index, isPrint]);
 
   useEffect(() => {
-    const onHash = () => setIndex(slideIndexFromHash());
+    if (isPrint) return;
+    // Route through goTo so the transition direction matches in-page hash
+    // links too (e.g. the quiz "Review" links).
+    const onHash = () => goTo(slideIndexFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [goTo, isPrint]);
 
   useEffect(() => {
+    if (isPrint) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -253,11 +116,8 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, goTo, paletteOpen]);
+  }, [index, goTo, paletteOpen, isPrint]);
 
-  const slide = FLAT[index];
-  const SlideComponent = slide.component;
-  const progress = ((index + 1) / FLAT.length) * 100;
   const sectionOffsets = useMemo(() => {
     let off = 0;
     return SECTIONS.map((s) => {
@@ -266,6 +126,32 @@ export default function App() {
       return o;
     });
   }, []);
+
+  if (isPrint) return <PrintDoc />;
+
+  const slide = FLAT[index];
+  const SlideComponent = slide.component;
+  const progress = ((index + 1) / FLAT.length) * 100;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = (e.target as HTMLElement).closest(
+      "input, button, a, .toc-overlay, .palette-overlay"
+    );
+    touchStart.current = t
+      ? null
+      : { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start || tocOpen || paletteOpen) return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    const dy = e.changedTouches[0].clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_MIN_X && Math.abs(dy) <= SWIPE_MAX_Y) {
+      goTo(index + (dx < 0 ? 1 : -1));
+    }
+  };
 
   return (
     <div className="deck">
@@ -308,7 +194,11 @@ export default function App() {
         </button>
       </header>
 
-      <main className="deck-stage">
+      <main
+        className="deck-stage"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         <div
           key={slide.id}
           ref={viewportRef}
@@ -325,9 +215,22 @@ export default function App() {
         {tocOpen && (
           <div
             className="toc-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Table of contents"
             onClick={(e) => e.target === e.currentTarget && setTocOpen(false)}
           >
-            <h2 className="toc-title">Contents</h2>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 14 }}>
+              <h2 className="toc-title">Contents</h2>
+              <a
+                className="toc-print-link"
+                href="./?print"
+                target="_blank"
+                rel="noreferrer"
+              >
+                ⎙ Print / PDF view
+              </a>
+            </div>
             {SECTIONS.map((s, si) => (
               <div className="toc-section" key={s.title}>
                 <h3>{s.title}</h3>

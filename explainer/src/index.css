@@ -1157,7 +1157,7 @@ input[type="range"]::-moz-range-thumb {
   left: 50%;
   bottom: calc(100% + 8px);
   transform: translateX(-50%);
-  width: 280px;
+  width: min(280px, 78vw);
   background: #131b36;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
@@ -1396,6 +1396,64 @@ input[type="range"]::-moz-range-thumb {
 
 .errors-search:focus {
   border-color: var(--aave-teal);
+}
+
+/* ---------------------------------- print view ---------------------------------- */
+.print-doc {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 26px clamp(16px, 3vw, 40px) 60px;
+}
+
+.print-banner {
+  border: 1px solid var(--border-strong);
+  background: var(--panel-strong);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.print-banner a {
+  color: var(--aave-teal);
+}
+
+.print-slide {
+  padding: 34px 0 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.print-slide-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-bottom: 14px;
+}
+
+.toc-print-link {
+  color: var(--aave-teal);
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(46, 186, 198, 0.4);
+}
+
+@media print {
+  body {
+    background: var(--bg);
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print-banner {
+    display: none;
+  }
+
+  .print-slide {
+    break-after: page;
+    break-inside: avoid-page;
+    border-bottom: none;
+  }
 }
 
 /* ---------------------------------- reduced motion ---------------------------------- */

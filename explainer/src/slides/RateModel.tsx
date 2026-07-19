@@ -250,6 +250,13 @@ export function RateModel() {
                 v={`${((curBorrow * u * rf) / 100 / 100).toFixed(2)}%`}
               />
             </div>
+            {slope2 < slope1 && (
+              <p className="note warn" style={{ marginTop: 10 }}>
+                This configuration would revert on-chain:{" "}
+                <code>Slope2MustBeGteSlope1()</code> — slope 2 must be ≥ slope 1
+                so the curve steepens (never flattens) past the kink.
+              </p>
+            )}
           </div>
           <div className="formula">
             u ≤ u<sub>opt</sub>: <span className="fr">rate</span>{" "}

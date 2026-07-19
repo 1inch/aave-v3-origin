@@ -55,8 +55,8 @@ const FOUNDATIONS: QuizQuestion[] = [
     answer: 1,
     explain:
       "Virtual accounting tracks every in/outflow internally, so donations to the aToken cannot distort utilization or rates.",
-    slideId: "bitmaps",
-    slideTitle: "Bitmaps & storage layout",
+    slideId: "supply-flow",
+    slideTitle: "Supply & withdraw",
   },
 ];
 

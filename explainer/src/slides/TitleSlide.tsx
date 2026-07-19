@@ -65,8 +65,8 @@ export function TitleSlide() {
           <h3>04 · Ecosystem</h3>
           <p>
             Flash loans, L2Pool calldata compression, the listing pipeline,
-            governance roles, the security model, and the full v3.0 → v3.7
-            version timeline.
+            periphery (stata tokens, gateway, rewards, GHO), governance roles,
+            the security model, and the full v3.0 → v3.7 version timeline.
           </p>
         </div>
       </div>

@@ -18,8 +18,18 @@ document reviews it, records the research behind the review, and defines the imp
   rules, isolated-eMode LTV resolution, calldata packing — simulators now consume these shared
   modules), E3 (GitHub Pages deploy job on main; requires Pages enabled in repo settings),
   E4 (version content extracted to `src/data/versions.ts` + documented update checklist).
-- **Remaining (deliberately deferred):** C8 (periphery slide: stata/gateway/rewards), C9 (GHO
-  card), U5 (print/PDF stylesheet), U6 (touch/swipe + SVG pan on mobile).
+- **Done — follow-up review round:** C8 + C9 ("Periphery & special reserves" slide: stata
+  tokens/ERC-4626, WrappedTokenGatewayV3, RewardsController, treasury path, GHO minted-reserve
+  card), U5 (print view via `/?print`, linked from the Contents overlay — renders all slides
+  sequentially with page breaks; kept in the dark theme with `print-color-adjust: exact` instead
+  of a black-on-white restyle, since the SVG palette is dark-theme-native), U6 (touch swipe
+  navigation on the slide stage; SVG pan was dropped as unnecessary — diagrams fit the viewport).
+  Plus review fixes: hash-link navigation now animates in the correct direction, per-slide
+  `document.title`, StepFlow Play restarts from the end, invalid rate configs surface the
+  on-chain `Slope2MustBeGteSlope1` error, glossary tooltips clamp to the viewport, quiz review
+  link for the virtual-accounting question points at the supply flow, TOC overlay is a labelled
+  dialog.
+- **Remaining:** none from the v2 roadmap.
 
 ---
 

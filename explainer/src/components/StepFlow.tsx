@@ -118,7 +118,14 @@ export function StepFlow({
         >
           Next step →
         </button>
-        <button className="icon-btn" onClick={() => setPlaying((p) => !p)}>
+        <button
+          className="icon-btn"
+          onClick={() => {
+            // Pressing Play at the last step restarts the animation.
+            if (!playing && current >= steps.length - 1) setCurrent(0);
+            setPlaying((p) => !p);
+          }}
+        >
           {playing ? "⏸ Pause" : "▶ Play"}
         </button>
         <span className="stepflow-progress">
