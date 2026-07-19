@@ -4,6 +4,8 @@ cache
 node_modules
 report
 reports
+# explainer webapp build output
+dist
 _corpus
 crytic-export
 snapshots
