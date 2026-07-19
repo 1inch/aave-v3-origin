@@ -9,6 +9,7 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - `forge` (Foundry) is installed at `~/.foundry/bin` and is on `PATH` via `~/.bashrc` (installed with `foundryup`, currently v1.7.x). If `forge` is ever missing in a non-login shell, run `export PATH="$HOME/.foundry/bin:$PATH"`.
 - Solidity dependencies are **git submodules** (`lib/forge-std`, `lib/solidity-utils`, plus nested OpenZeppelin modules). They must be initialized (`git submodule update --init --recursive`); the startup update script handles this. Builds fail with missing-import errors if they are absent.
 - Node/npm deps (`npm install`) are only needed for `prettier` (lint) and `changesets` (release) — not for compiling or testing contracts.
+- Fuzzing toolchain is installed in `~/.local/bin` (on `PATH` via `~/.bashrc`): `echidna` (v2.3.x), `medusa` (v1.5.x), plus `crytic-compile` and `solc-select` (with `solc 0.8.27` selected globally, matching `foundry.toml`). Both fuzzers compile through `crytic-compile`, which auto-detects the Foundry project and runs `forge build` under the hood. If they are missing in a non-login shell, run `export PATH="$HOME/.local/bin:$PATH"` (and `solc-select use 0.8.27` if `solc` resolves to the wrong version).
 
 ### Common commands (see `Makefile`, `foundry.toml`, `package.json`)
 
@@ -17,6 +18,7 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - Single contract: `make test-contract filter=<ContractName>`
 - Lint: `npm run lint` (prettier check); `npm run lint:fix` to auto-format.
 - Coverage: `make coverage` (needs `lcov`/`genhtml`).
+- Stateful fuzzing (invariants): `make echidna` / `make medusa`. These run **indefinitely** by design (`echidna_config.yaml` `testLimit: 20000000`; `medusa.json` `timeout: 0`), so run them in a background/tmux session and stop them manually. See the fuzzing gotcha below before relying on them.
 
 ### Agent skills
 
@@ -25,6 +27,7 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 
 ### Non-obvious gotchas
 
-- Running the test suite writes generated JSON files into `reports/` (Foundry `fs_permissions` grant read-write there). These are gitignored test artifacts and are also excluded from `npm run lint` via `.prettierignore`.
+- Running the test suite writes generated JSON files into `reports/` (Foundry `fs_permissions` grant read-write there). These are gitignored test artifacts and are also excluded from `npm run lint` via `.prettierignore` (as are the vendored skills under `.agents/`), so `npm run lint` is clean on a fresh checkout and after test runs.
 - The default `forge test` run needs **no `.env` and no network**. `.env` RPC endpoints (see `.env.example`) are only for fork tests and deployment scripts; deployment additionally requires a Ledger.
-- Optional fuzzing/verification tools (Echidna, Medusa, Certora) are **not** installed by default and are not part of the normal build/test loop.
+- `echidna`/`medusa` are installed (see Toolchain), but `make echidna` and `make medusa` currently **fail on the committed configs due to pre-existing config/source drift**, not a tooling problem: both `tests/invariants/_config/echidna_config.yaml` and `medusa.json` still declare a predeployed `EModeLogic` library (`0xf09`), but `EModeLogic` no longer exists in `src/` (e-mode logic was refactored into other libraries). Symptoms after a successful ~15s `crytic-compile`/`forge build`: echidna prints `Given contract "EModeLogic" not found in given file`; medusa prints `EModeLogic was specified in the predeployed contracts but was not found in the compilation artifacts`. The binaries themselves are verified working on a standalone harness. Fixing the campaigns requires updating those config files (out of scope for env setup).
+- `slither` is **not** installed; both fuzzers emit a non-fatal warning and continue without it. `Certora` is also not installed. Installing `slither` (`pip3 install --user slither-analyzer`) is optional and only improves fuzzing effectiveness.
