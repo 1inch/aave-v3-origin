@@ -2,7 +2,9 @@
   "name": "@aave-dao/aave-v3-origin",
   "version": "3.6.0",
   "scripts": {
-    "lint": "prettier . --check",
+    "lint": "npm run lint:prettier && npm run lint:sol",
+    "lint:prettier": "prettier . --check",
+    "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:fix": "prettier . --write",
     "changeset": "changeset",
     "version-packages": "changeset version",
@@ -29,7 +31,8 @@
   "devDependencies": {
     "@changesets/cli": "^2.28.1",
     "prettier": "^2.8.3",
-    "prettier-plugin-solidity": "^1.1.1"
+    "prettier-plugin-solidity": "^1.1.1",
+    "solhint": "^6.2.3"
   },
   "dependencies": {
     "@bgd-labs/solidity-utils": "1.1.2"
