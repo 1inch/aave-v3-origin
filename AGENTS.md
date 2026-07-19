@@ -21,6 +21,7 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - Manage with `npx skills list` / `npx skills update`.
 
 ### Non-obvious gotchas
-- Running the test suite writes generated JSON files into `reports/` (Foundry `fs_permissions` grant read-write there). `npm run lint` then flags these `reports/*.json` files because `.prettierignore` lists `report` (singular), not `reports/`. These are **gitignored test artifacts, not real lint failures** — the tracked source lints clean on a fresh checkout.
+- `npm run lint` (prettier `--check`) is **not clean even on a fresh checkout**: it flags the tracked Markdown under `.agents/skills/**/*.md` and `AGENTS.md` itself. The tracked **Solidity source** (`src/**`) does lint clean; only these docs are flagged. Do not treat these Markdown warnings as failures you introduced.
+- Running the test suite also writes generated JSON files into `reports/` (Foundry `fs_permissions` grant read-write there). `npm run lint` then flags these `reports/*.json` files too because `.prettierignore` lists `report` (singular), not `reports/`. These are **gitignored test artifacts, not real lint failures**.
 - The default `forge test` run needs **no `.env` and no network**. `.env` RPC endpoints (see `.env.example`) are only for fork tests and deployment scripts; deployment additionally requires a Ledger.
 - Optional fuzzing/verification tools (Echidna, Medusa, Certora) are **not** installed by default and are not part of the normal build/test loop.
