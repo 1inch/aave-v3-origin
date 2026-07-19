@@ -16,6 +16,10 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - Lint: `npm run lint` (prettier check); `npm run lint:fix` to auto-format.
 - Coverage: `make coverage` (needs `lcov`/`genhtml`).
 
+### Agent skills
+- Reusable agent skills are installed under `.agents/skills/` (via `npx skills`, tracked in `skills-lock.json`) and indexed by the always-on Cursor rule `.cursor/rules/agent-skills.mdc`. Load the relevant `SKILL.md` when its trigger matches: `solidity-auditor` (security review), `x-ray` (pre-audit readiness report), `fizz` (Echidna/Medusa invariant suites — note it may add a `[profile.fuzz]` block to `foundry.toml`), `upgrade-solidity-contracts` (proxy/upgrade/storage-layout work), `develop-secure-contracts` and `setup-solidity-contracts` (OpenZeppelin integration/setup).
+- Manage with `npx skills list` / `npx skills update`.
+
 ### Non-obvious gotchas
 - Running the test suite writes generated JSON files into `reports/` (Foundry `fs_permissions` grant read-write there). `npm run lint` then flags these `reports/*.json` files because `.prettierignore` lists `report` (singular), not `reports/`. These are **gitignored test artifacts, not real lint failures** — the tracked source lints clean on a fresh checkout.
 - The default `forge test` run needs **no `.env` and no network**. `.env` RPC endpoints (see `.env.example`) are only for fork tests and deployment scripts; deployment additionally requires a Ledger.
