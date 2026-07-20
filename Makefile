@@ -50,6 +50,9 @@ deploy-1inch-earn :;
 list-1inch-earn :;
 	forge script scripts/1inch-earn/List1inchEarnAssets.sol:List1inchEarnAssets --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
 
+seed-1inch-earn :;
+	forge script scripts/1inch-earn/Seed1inchEarn.sol:Seed1inchEarn --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
+
 install-1inch-earn-gate :;
 	forge script scripts/1inch-earn/Install1inchEarnLiquidatorGate.sol:Install1inchEarnLiquidatorGate --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast --verify
 
@@ -58,6 +61,11 @@ handover-1inch-earn :;
 
 # Local (mock) + optional mainnet-fork dress rehearsal (set RPC_MAINNET for the fork tests)
 test-1inch-earn :; forge test --match-path 'tests/1inch-earn/*' -vvv
+
+# Anvil integration test: runs the REAL deploy/list/seed/gate/handover scripts against a
+# mainnet-forked anvil node and asserts on-chain state via cast (needs anvil+cast+jq;
+# RPC_MAINNET optional, defaults to a public node).
+test-1inch-earn-anvil :; bash tests/1inch-earn/anvil/run-anvil-integration.sh
 
 
 # Invariants

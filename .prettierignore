@@ -4,6 +4,8 @@ cache
 node_modules
 report
 reports
+# forge script broadcast artifacts (gitignored; written by the anvil integration test)
+broadcast
 # explainer webapp build output
 dist
 _corpus

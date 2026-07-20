@@ -37,7 +37,7 @@ contract List1inchEarnAssets is OneInchEarnReportReader {
     OneInchEarnListingPayload payload = new OneInchEarnListingPayload(
       report,
       listings,
-      OneInchEarnConfig.ethCorrelatedEMode()
+      OneInchEarnConfig.launchEModes()
     );
 
     // Grant, execute (self-renounces POOL_ADMIN inside execute()).

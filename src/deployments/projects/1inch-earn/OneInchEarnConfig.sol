@@ -55,6 +55,7 @@ library OneInchEarnConfig {
   // ----------------------------------- eMode -----------------------------------
 
   uint8 internal constant ETH_CORRELATED_EMODE_ID = 1;
+  uint8 internal constant STABLECOIN_EMODE_ID = 2;
 
   // ----------------------- Mainnet underlying addresses ------------------------
 
@@ -116,7 +117,8 @@ library OneInchEarnConfig {
     // Caps in whole tokens of the underlying.
     uint256 supplyCap;
     uint256 borrowCap;
-    // ETH-correlated eMode membership.
+    // eMode membership: category id (0 = none) + collateral/borrowable flags within it.
+    uint8 eModeCategoryId;
     bool eModeCollateral;
     bool eModeBorrowable;
     // Interest rate strategy params (bps).
@@ -130,10 +132,13 @@ library OneInchEarnConfig {
     // Configurator format: 101_00 = 1% bonus.
     uint16 liquidationBonus;
     string label;
-    // false = standard liquid eMode. Setting true (isolated eMode, v3.7) would zero
-    // the LTV of any collateral outside the category for users inside the eMode.
-    // Decision: launch non-isolated to keep pro cross-margin flexibility; the DAO can
-    // flip it later via `setEModeCategoryIsolated` without liquidating existing users.
+    // DECISION (deliberate, asserted in OneInchEarnConfigVerification): launch NON-isolated.
+    // v3.7's isolated-emode doc recommends isolated=true for correlated eModes so non-ETH
+    // collateral cannot add borrowing power while in the category. We launch `false` on purpose
+    // to preserve the briefing's cross-margin health-factor model (a maker in the ETH eMode can
+    // still use other enabled collateral at its base LTV). This is a risk-provider call and is
+    // reversible in one governance tx via `setEModeCategoryIsolated` WITHOUT liquidating existing
+    // users (non-eMode collateral simply drops to LTV 0 on flip; liquidation threshold unchanged).
     bool isolated;
   }
 
@@ -205,6 +210,27 @@ library OneInchEarnConfig {
       });
   }
 
+  /// @notice Stablecoin eMode (USDC/USDT), following Aave mainline conventions for correlated
+  /// stables. Low risk (both are USD-pegged) and boosts stable-vs-stable capital efficiency.
+  function stablecoinEMode() internal pure returns (EModeConfig memory) {
+    return
+      EModeConfig({
+        categoryId: STABLECOIN_EMODE_ID,
+        ltv: 90_00,
+        liqThreshold: 93_00,
+        liquidationBonus: 101_00, // 93_00 * 101_00 = 93.93% <= 100%
+        label: 'Stablecoins',
+        isolated: false
+      });
+  }
+
+  /// @notice The eMode categories created at launch, in order.
+  function launchEModes() internal pure returns (EModeConfig[] memory eModes) {
+    eModes = new EModeConfig[](2);
+    eModes[0] = ethCorrelatedEMode();
+    eModes[1] = stablecoinEMode();
+  }
+
   /**
    * @notice The phase-1 launch book: 7 reserves.
    * @dev Cap conversion anchors (documented assumptions, retune before launch):
@@ -235,6 +261,7 @@ library OneInchEarnConfig {
       reserveFactor: 20_00,
       supplyCap: 2_500_000,
       borrowCap: 0,
+      eModeCategoryId: 0,
       eModeCollateral: false,
       eModeBorrowable: false,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
@@ -259,6 +286,7 @@ library OneInchEarnConfig {
       reserveFactor: 15_00,
       supplyCap: 3_000,
       borrowCap: 2_400,
+      eModeCategoryId: ETH_CORRELATED_EMODE_ID,
       eModeCollateral: true,
       eModeBorrowable: true,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
@@ -283,6 +311,7 @@ library OneInchEarnConfig {
       reserveFactor: 15_00,
       supplyCap: 2_500,
       borrowCap: 250,
+      eModeCategoryId: ETH_CORRELATED_EMODE_ID,
       eModeCollateral: true,
       eModeBorrowable: false,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
@@ -307,6 +336,7 @@ library OneInchEarnConfig {
       reserveFactor: 20_00,
       supplyCap: 100,
       borrowCap: 40,
+      eModeCategoryId: 0,
       eModeCollateral: false,
       eModeBorrowable: false,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
@@ -331,6 +361,7 @@ library OneInchEarnConfig {
       reserveFactor: 20_00,
       supplyCap: 100,
       borrowCap: 40,
+      eModeCategoryId: 0,
       eModeCollateral: false,
       eModeBorrowable: false,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
@@ -341,7 +372,7 @@ library OneInchEarnConfig {
       })
     });
 
-    // --- USDC: primary borrow engine.
+    // --- USDC: primary borrow engine + stablecoin eMode.
     result[5] = AssetListing({
       asset: tokens.usdc,
       assetSymbol: 'USDC',
@@ -355,8 +386,9 @@ library OneInchEarnConfig {
       reserveFactor: 10_00,
       supplyCap: 10_000_000,
       borrowCap: 9_000_000,
-      eModeCollateral: false,
-      eModeBorrowable: false,
+      eModeCategoryId: STABLECOIN_EMODE_ID,
+      eModeCollateral: true,
+      eModeBorrowable: true,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
         optimalUsageRatio: 90_00,
         baseVariableBorrowRate: 0,
@@ -365,7 +397,7 @@ library OneInchEarnConfig {
       })
     });
 
-    // --- USDT: primary borrow engine.
+    // --- USDT: primary borrow engine + stablecoin eMode.
     result[6] = AssetListing({
       asset: tokens.usdt,
       assetSymbol: 'USDT',
@@ -379,8 +411,9 @@ library OneInchEarnConfig {
       reserveFactor: 10_00,
       supplyCap: 10_000_000,
       borrowCap: 9_000_000,
-      eModeCollateral: false,
-      eModeBorrowable: false,
+      eModeCategoryId: STABLECOIN_EMODE_ID,
+      eModeCollateral: true,
+      eModeBorrowable: true,
       rates: IDefaultInterestRateStrategyV2.InterestRateData({
         optimalUsageRatio: 90_00,
         baseVariableBorrowRate: 0,
@@ -416,6 +449,7 @@ library OneInchEarnConfig {
         reserveFactor: 20_00,
         supplyCap: supplyCapTokens,
         borrowCap: 0,
+        eModeCategoryId: 0,
         eModeCollateral: false,
         eModeBorrowable: false,
         rates: IDefaultInterestRateStrategyV2.InterestRateData({
