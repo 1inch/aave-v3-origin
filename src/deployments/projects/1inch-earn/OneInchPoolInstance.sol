@@ -5,8 +5,14 @@ import {PoolInstance} from '../../../contracts/instances/PoolInstance.sol';
 import {IPoolAddressesProvider} from '../../../contracts/interfaces/IPoolAddressesProvider.sol';
 import {IReserveInterestRateStrategy} from '../../../contracts/interfaces/IReserveInterestRateStrategy.sol';
 import {IACLManager} from '../../../contracts/interfaces/IACLManager.sol';
+import {IScaledBalanceToken} from '../../../contracts/interfaces/IScaledBalanceToken.sol';
 import {Errors} from '../../../contracts/protocol/libraries/helpers/Errors.sol';
+import {DataTypes} from '../../../contracts/protocol/libraries/types/DataTypes.sol';
+import {UserConfiguration} from '../../../contracts/protocol/libraries/configuration/UserConfiguration.sol';
+import {ValidationLogic} from '../../../contracts/protocol/libraries/logic/ValidationLogic.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
+import {IOneInchEarnPool} from './IOneInchEarnPool.sol';
+import {OneInchDebtTransferValidation} from './OneInchDebtTransferValidation.sol';
 
 /**
  * @title OneInchPoolInstance
@@ -35,11 +41,15 @@ import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
  * Scope: only `liquidationCall` is gated. `eliminateReserveDeficit` (Umbrella), position
  * managers, flashloans and transfers behave exactly as in v3.7.
  */
-contract OneInchPoolInstance is PoolInstance {
+contract OneInchPoolInstance is PoolInstance, IOneInchEarnPool {
+  using UserConfiguration for DataTypes.UserConfigurationMap;
+
   /// @dev Thrown when a non KYC'd address attempts to liquidate while the gate is active.
   error OnlyKycLiquidators();
   /// @dev Thrown when a non-admin attempts to change the liquidator gate.
   error CallerNotPoolOrEmergencyAdmin();
+  /// @dev Thrown when `finalizeDebtTransfer` is called by anything other than the reserve's vToken.
+  error CallerNotVariableDebtToken();
 
   event LiquidatorGateUpdated(address indexed oldGate, address indexed newGate);
 
@@ -131,5 +141,36 @@ contract OneInchPoolInstance is PoolInstance {
     assembly {
       $.slot := LIQUIDATOR_GATE_STORAGE
     }
+  }
+
+  /// @inheritdoc IOneInchEarnPool
+  /// @dev Mirrors the aToken `finalizeTransfer` flow (see `Pool.finalizeTransfer`) but for debt:
+  /// it runs the borrow-side reserve/eMode checks, flips the borrowing flags for both accounts,
+  /// and health-checks the receiver. The debt token has already moved the scaled balance, so
+  /// balances read here are post-move. Reads no untrusted input beyond the asset (guarded to the
+  /// reserve's own debt token).
+  function finalizeDebtTransfer(address asset, address from, address to) external override {
+    DataTypes.ReserveData storage reserve = _reserves[asset];
+    require(_msgSender() == reserve.variableDebtTokenAddress, CallerNotVariableDebtToken());
+
+    uint8 toEModeCategory = _usersEModeCategory[to];
+    OneInchDebtTransferValidation.validateDebtTransfer(reserve, _eModeCategories, toEModeCategory);
+
+    uint256 reserveId = reserve.id;
+    _usersConfig[to].setBorrowing(reserveId, true);
+    if (IScaledBalanceToken(reserve.variableDebtTokenAddress).scaledBalanceOf(from) == 0) {
+      _usersConfig[from].setBorrowing(reserveId, false);
+    }
+
+    // Only the receiver (who just assumed the debt) can become unhealthy.
+    ValidationLogic.validateHFAndLtv(
+      _reserves,
+      _reservesList,
+      _eModeCategories,
+      _usersConfig[to],
+      to,
+      toEModeCategory,
+      ADDRESSES_PROVIDER.getPriceOracle()
+    );
   }
 }

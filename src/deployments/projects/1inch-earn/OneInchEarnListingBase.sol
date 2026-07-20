@@ -4,8 +4,10 @@ pragma solidity ^0.8.0;
 import {MarketReport} from '../../interfaces/IMarketReportTypes.sol';
 import {IPoolConfigurator, ConfiguratorInputTypes} from '../../../contracts/interfaces/IPoolConfigurator.sol';
 import {IAaveOracle} from '../../../contracts/interfaces/IAaveOracle.sol';
+import {IPool} from '../../../contracts/interfaces/IPool.sol';
 import {ACLManager} from '../../../contracts/protocol/configuration/ACLManager.sol';
 import {OneInchEarnConfig} from './OneInchEarnConfig.sol';
+import {OneInchVariableDebtToken} from './OneInchVariableDebtToken.sol';
 
 /**
  * @title OneInchEarnListingBase
@@ -41,7 +43,12 @@ abstract contract OneInchEarnListingBase {
     ORACLE = IAaveOracle(report.aaveOracle);
     ACL_MANAGER = ACLManager(report.aclManager);
     ATOKEN_IMPL = report.aToken;
-    VDEBT_IMPL = report.variableDebtToken;
+    // 1inch Earn reserves use the transferable debt token implementation (transfers stay
+    // OFF until governance flips `setTransferable`, post-audit). The stock impl at
+    // report.variableDebtToken remains deployed but unused for these listings.
+    VDEBT_IMPL = address(
+      new OneInchVariableDebtToken(IPool(report.poolProxy), report.rewardsControllerProxy)
+    );
 
     for (uint256 i = 0; i < listings_.length; i++) {
       _listings.push(listings_[i]);
