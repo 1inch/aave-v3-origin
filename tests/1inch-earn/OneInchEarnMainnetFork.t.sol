@@ -14,6 +14,7 @@ import {ACLManager} from '../../src/contracts/protocol/configuration/ACLManager.
 import {AaveProtocolDataProvider} from '../../src/contracts/helpers/AaveProtocolDataProvider.sol';
 import {IOwnableLike} from '../../src/deployments/projects/1inch-earn/OneInchEarnHandover.sol';
 
+import {OneInchEarnConfigAssertions} from './OneInchEarnConfigAssertions.sol';
 import {OneInchEarnConfig} from '../../src/deployments/projects/1inch-earn/OneInchEarnConfig.sol';
 import {OneInchEarnListingPayload} from '../../src/deployments/projects/1inch-earn/OneInchEarnListingPayload.sol';
 import {OneInchEarnHandover} from '../../src/deployments/projects/1inch-earn/OneInchEarnHandover.sol';
@@ -38,7 +39,7 @@ interface IAggregatorLike {
  * Skipped automatically unless `RPC_MAINNET` (or `RPC_MAINNET_FORK`) is set, so the
  * default `make test` run needs no network.
  */
-contract OneInchEarnMainnetForkTest is Test {
+contract OneInchEarnMainnetForkTest is Test, OneInchEarnConfigAssertions {
   address internal deployer = makeAddr('oneInchDeployer');
   address internal dao = makeAddr('oneInchDao');
   address internal guardian = makeAddr('oneInchGuardian');
@@ -96,6 +97,23 @@ contract OneInchEarnMainnetForkTest is Test {
     assertTrue(collateral, '1INCH collateral enabled');
     assertFalse(borrowing, '1INCH borrowing disabled');
     assertFalse(dp.getFlashLoanEnabled(tokens.oneInch), '1INCH flashloans disabled');
+  }
+
+  function test_fork_fullConfigMatchesOneInchConfig() public {
+    if (_skip()) return;
+    // The same automated config gate as the local verifier, against REAL mainnet assets/feeds.
+    OneInchEarnConfig.AssetListing[] memory listings = OneInchEarnConfig.listings(tokens, feeds);
+    for (uint256 i = 0; i < listings.length; i++) {
+      _assertReserveMatchesConfig(pool, dp, IAaveOracle(report.aaveOracle), listings[i]);
+    }
+    _assertRedRow(dp, tokens.oneInch, '1INCH');
+
+    address[] memory collateral = new address[](2);
+    collateral[0] = tokens.weth;
+    collateral[1] = tokens.wstEth;
+    address[] memory borrowable = new address[](1);
+    borrowable[0] = tokens.weth;
+    _assertEModeMatchesConfig(pool, OneInchEarnConfig.ethCorrelatedEMode(), collateral, borrowable);
   }
 
   function test_fork_supplyBorrowRepaySmoke() public {
