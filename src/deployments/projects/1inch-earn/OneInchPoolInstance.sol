@@ -5,14 +5,10 @@ import {PoolInstance} from '../../../contracts/instances/PoolInstance.sol';
 import {IPoolAddressesProvider} from '../../../contracts/interfaces/IPoolAddressesProvider.sol';
 import {IReserveInterestRateStrategy} from '../../../contracts/interfaces/IReserveInterestRateStrategy.sol';
 import {IACLManager} from '../../../contracts/interfaces/IACLManager.sol';
-import {IScaledBalanceToken} from '../../../contracts/interfaces/IScaledBalanceToken.sol';
 import {Errors} from '../../../contracts/protocol/libraries/helpers/Errors.sol';
-import {DataTypes} from '../../../contracts/protocol/libraries/types/DataTypes.sol';
-import {UserConfiguration} from '../../../contracts/protocol/libraries/configuration/UserConfiguration.sol';
-import {ValidationLogic} from '../../../contracts/protocol/libraries/logic/ValidationLogic.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {IOneInchEarnPool} from './IOneInchEarnPool.sol';
-import {OneInchDebtTransferValidation} from './OneInchDebtTransferValidation.sol';
+import {OneInchDebtTransferLogic} from './OneInchDebtTransferLogic.sol';
 
 /**
  * @title OneInchPoolInstance
@@ -42,8 +38,6 @@ import {OneInchDebtTransferValidation} from './OneInchDebtTransferValidation.sol
  * managers, flashloans and transfers behave exactly as in v3.7.
  */
 contract OneInchPoolInstance is PoolInstance, IOneInchEarnPool {
-  using UserConfiguration for DataTypes.UserConfigurationMap;
-
   /// @dev Thrown when a non KYC'd address attempts to liquidate while the gate is active.
   error OnlyKycLiquidators();
   /// @dev Thrown when a non-admin attempts to change the liquidator gate.
@@ -148,28 +142,24 @@ contract OneInchPoolInstance is PoolInstance, IOneInchEarnPool {
   /// it runs the borrow-side reserve/eMode checks, flips the borrowing flags for both accounts,
   /// and health-checks the receiver. The debt token has already moved the scaled balance, so
   /// balances read here are post-move. Reads no untrusted input beyond the asset (guarded to the
-  /// reserve's own debt token).
+  /// reserve's own debt token). The heavy lifting is delegated to the externally-linked
+  /// `OneInchDebtTransferLogic` library (same pattern as Borrow/Supply/LiquidationLogic) to keep
+  /// this contract under the EIP-170 deployment size limit.
   function finalizeDebtTransfer(address asset, address from, address to) external override {
-    DataTypes.ReserveData storage reserve = _reserves[asset];
-    require(_msgSender() == reserve.variableDebtTokenAddress, CallerNotVariableDebtToken());
+    require(
+      _msgSender() == _reserves[asset].variableDebtTokenAddress,
+      CallerNotVariableDebtToken()
+    );
 
-    uint8 toEModeCategory = _usersEModeCategory[to];
-    OneInchDebtTransferValidation.validateDebtTransfer(reserve, _eModeCategories, toEModeCategory);
-
-    uint256 reserveId = reserve.id;
-    _usersConfig[to].setBorrowing(reserveId, true);
-    if (IScaledBalanceToken(reserve.variableDebtTokenAddress).scaledBalanceOf(from) == 0) {
-      _usersConfig[from].setBorrowing(reserveId, false);
-    }
-
-    // Only the receiver (who just assumed the debt) can become unhealthy.
-    ValidationLogic.validateHFAndLtv(
+    OneInchDebtTransferLogic.executeFinalizeDebtTransfer(
       _reserves,
       _reservesList,
       _eModeCategories,
-      _usersConfig[to],
+      _usersConfig,
+      asset,
+      from,
       to,
-      toEModeCategory,
+      _usersEModeCategory[to],
       ADDRESSES_PROVIDER.getPriceOracle()
     );
   }
