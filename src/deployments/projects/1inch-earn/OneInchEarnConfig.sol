@@ -66,34 +66,37 @@ library OneInchEarnConfig {
   address internal constant USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
   address internal constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
 
-  // -------------------------- Mainnet Chainlink feeds --------------------------
-  // All feeds MUST answer in 8 decimals (asserted by the fork dress rehearsal) and
-  // MUST pass the independent oracle review before launch.
+  // ----------------------------- Mainnet USD feeds -----------------------------
+  // These are the exact price-source adapters used by the Aave v3 Ethereum mainline
+  // oracle (verified on-chain, all answer in 8 decimals). Reusing the battle-tested
+  // adapters — rather than raw Chainlink proxies — captures the correlated-asset (CAPO)
+  // and synchronicity protections Aave already relies on (e.g. wstETH exchange-rate
+  // adapter, WBTC/BTC de-peg adapter). Still subject to the independent oracle review
+  // before launch; the fork dress rehearsal asserts each has code and answers in 8 dp.
 
-  /// @dev Chainlink ETH/USD.
+  /// @dev Raw Chainlink ETH/USD; used as the UiPoolDataProvider network-base aggregator.
   address internal constant ETH_USD_FEED = 0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419;
 
-  /// @dev Chainlink 1INCH/USD.
+  /// @dev Chainlink 1INCH/USD (also the Aave mainline 1INCH source).
   address internal constant ONEINCH_USD_FEED = 0xc929ad75B72593967DE83E7F7Cda0493458261D9;
 
-  /// @dev Chainlink BTC/USD. VERIFY: Aave mainline prices WBTC through a composed
-  /// WBTC/BTC * BTC/USD adapter to capture bridge de-peg risk; the risk provider must
-  /// decide whether to deploy the composed adapter before launch.
-  address internal constant WBTC_USD_FEED = 0xF4030086522a5beea4988f8ca5b36dBc97BCe88C;
+  /// @dev Aave mainline WETH/USD source adapter.
+  address internal constant WETH_USD_FEED = 0x5424384B256154046E9667dDFaaa5e550145215e;
 
-  /// @dev Chainlink cbBTC/USD. VERIFY on-chain before launch (fork test sanity-checks it).
-  address internal constant CBBTC_USD_FEED = 0x2665701293fCbEB223D11A08D826563EDcCE423A;
+  /// @dev Aave mainline wstETH/USD CAPO adapter (wstETH->stETH exchange rate * ETH/USD).
+  address internal constant WSTETH_USD_FEED = 0xe1D97bF61901B075E9626c8A2340a7De385861Ef;
 
-  /// @dev Chainlink USDC/USD.
-  address internal constant USDC_USD_FEED = 0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6;
+  /// @dev Aave mainline WBTC/USD adapter (WBTC/BTC de-peg composed with BTC/USD).
+  address internal constant WBTC_USD_FEED = 0xDaa4B74C6bAc4e25188e64ebc68DB5050b690cAc;
 
-  /// @dev Chainlink USDT/USD.
-  address internal constant USDT_USD_FEED = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
+  /// @dev Aave mainline cbBTC/USD adapter.
+  address internal constant CBBTC_USD_FEED = 0xb41E773f507F7a7EA890b1afB7d2b660c30C8B0A;
 
-  // NOTE: wstETH has NO direct constant on purpose. A CAPO-style correlated-asset
-  // price adapter (wstETH -> stETH exchange rate composed with a USD feed, upside
-  // capped) must be deployed and reviewed before launch, then passed explicitly to
-  // `mainnetFeeds(address wstEthUsdFeed)`.
+  /// @dev Aave mainline USDC/USD adapter.
+  address internal constant USDC_USD_FEED = 0x3f73F03aa83B2A48ed27E964eD0fDb590332095B;
+
+  /// @dev Aave mainline USDT/USD adapter.
+  address internal constant USDT_USD_FEED = 0x260326c220E469358846b187eE53328303Efe19C;
 
   // ---------------------------------- Types ------------------------------------
 
@@ -169,13 +172,19 @@ library OneInchEarnConfig {
       });
   }
 
-  /// @param wstEthUsdFeed The reviewed CAPO-style wstETH/USD adapter (see note above).
+  /// @notice Default feed set: the Aave v3 Ethereum mainline USD source adapters.
+  function mainnetFeeds() internal pure returns (FeedAddresses memory) {
+    return mainnetFeeds(WSTETH_USD_FEED);
+  }
+
+  /// @param wstEthUsdFeed Overrides the wstETH/USD adapter (pass a freshly reviewed CAPO
+  /// adapter if the risk provider deploys a dedicated one for this instance).
   function mainnetFeeds(address wstEthUsdFeed) internal pure returns (FeedAddresses memory) {
     require(wstEthUsdFeed != address(0), 'WSTETH_FEED_REQUIRED');
     return
       FeedAddresses({
         oneInch: ONEINCH_USD_FEED,
-        weth: ETH_USD_FEED,
+        weth: WETH_USD_FEED,
         wstEth: wstEthUsdFeed,
         wbtc: WBTC_USD_FEED,
         cbBtc: CBBTC_USD_FEED,
