@@ -83,11 +83,7 @@ contract OneInchEarnMainnetForkTest is Test {
 
       // 1x branding on real tokens.
       address aToken = pool.getReserveAToken(l.asset);
-      assertEq(
-        IERC20Metadata(aToken).symbol(),
-        string.concat('1x', l.assetSymbol),
-        '1x symbol'
-      );
+      assertEq(IERC20Metadata(aToken).symbol(), string.concat('1x', l.assetSymbol), '1x symbol');
     }
   }
 
@@ -258,22 +254,14 @@ contract OneInchEarnMainnetForkTest is Test {
     assertFalse(acl.hasRole(bytes32(0), deployer), 'deployer not default admin');
 
     // Ownership moved.
-    assertEq(
-      IOwnableLike(report.poolAddressesProvider).owner(),
-      dao,
-      'provider owned by dao'
-    );
+    assertEq(IOwnableLike(report.poolAddressesProvider).owner(), dao, 'provider owned by dao');
     assertEq(
       IOwnableLike(report.poolAddressesProviderRegistry).owner(),
       dao,
       'registry owned by dao'
     );
     assertEq(IOwnableLike(report.emissionManager).owner(), dao, 'emission manager owned by dao');
-    assertEq(
-      IOwnableLike(report.wrappedTokenGateway).owner(),
-      dao,
-      'gateway owned by dao'
-    );
+    assertEq(IOwnableLike(report.wrappedTokenGateway).owner(), dao, 'gateway owned by dao');
     assertEq(IPoolAddressesProvider(report.poolAddressesProvider).getACLAdmin(), dao, 'acl admin');
   }
 

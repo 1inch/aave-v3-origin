@@ -10,29 +10,29 @@ this repository. Everything here is code in `src/deployments/projects/1inch-earn
 
 ## 0. What gets deployed
 
-| Component | Source | Notes |
-| --- | --- | --- |
-| Full Aave v3.7 market | `AaveV3BatchOrchestration` (unchanged) | provider + registry, Pool/Configurator, ACL, oracle, Collector + dustBin, incentives, data providers, config engine, static aToken factory, WETH gateway |
-| Launch book (7 reserves) | `OneInchEarnConfig` + `OneInchEarnListingPayload` | 1x-branded aTokens; 1INCH collateral-only; ETH eMode |
-| Liquidator KYC gate (optional) | `KycNFT` + `OneInchPoolInstance` | permissioned liquidations; reversible |
-| Governance handover | `OneInchEarnHandover` | all roles/ownership → DAO, guardian, risk provider |
-| AQUA listing (phase 2) | `AquaListingPayload` | post-TGE, gated |
+| Component                      | Source                                            | Notes                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Full Aave v3.7 market          | `AaveV3BatchOrchestration` (unchanged)            | provider + registry, Pool/Configurator, ACL, oracle, Collector + dustBin, incentives, data providers, config engine, static aToken factory, WETH gateway |
+| Launch book (7 reserves)       | `OneInchEarnConfig` + `OneInchEarnListingPayload` | 1x-branded aTokens; 1INCH collateral-only; ETH eMode                                                                                                     |
+| Liquidator KYC gate (optional) | `KycNFT` + `OneInchPoolInstance`                  | permissioned liquidations; reversible                                                                                                                    |
+| Governance handover            | `OneInchEarnHandover`                             | all roles/ownership → DAO, guardian, risk provider                                                                                                       |
+| AQUA listing (phase 2)         | `AquaListingPayload`                              | post-TGE, gated                                                                                                                                          |
 
 Single source of truth for all risk parameters and mainnet addresses:
 [`OneInchEarnConfig.sol`](../../src/deployments/projects/1inch-earn/OneInchEarnConfig.sol).
 
 ### Launch book (approved 19 Jul 2026)
 
-| Reserve | LTV / LT | Liq. bonus | Borrowable | Supply cap (tokens) | eMode |
-| --- | --- | --- | --- | --- | --- |
-| 1INCH | 55% / 65% | 10% | never (flashloans off) | 2,500,000 (→5,000,000) | – |
-| WETH | 80% / 83% | 5% | yes | 3,000 | ETH (collateral + borrowable) |
-| wstETH | 80% / 83% | 6% | yes | 2,500 | ETH (collateral) |
-| WBTC | 73% / 78% | 6.5% | yes | 100 | – |
-| cbBTC | 73% / 78% | 6.5% | yes | 100 | – |
-| USDC | 75% / 78% | 4.5% | yes (primary) | 10,000,000 | – |
-| USDT | 75% / 78% | 4.5% | yes (primary) | 10,000,000 | – |
-| AQUA (phase 2) | 30% / 38.5% → 50% / 62.5% | 12.5% | never | $0.5M-equiv | – |
+| Reserve        | LTV / LT                  | Liq. bonus | Borrowable             | Supply cap (tokens)    | eMode                         |
+| -------------- | ------------------------- | ---------- | ---------------------- | ---------------------- | ----------------------------- |
+| 1INCH          | 55% / 65%                 | 10%        | never (flashloans off) | 2,500,000 (→5,000,000) | –                             |
+| WETH           | 80% / 83%                 | 5%         | yes                    | 3,000                  | ETH (collateral + borrowable) |
+| wstETH         | 80% / 83%                 | 6%         | yes                    | 2,500                  | ETH (collateral)              |
+| WBTC           | 73% / 78%                 | 6.5%       | yes                    | 100                    | –                             |
+| cbBTC          | 73% / 78%                 | 6.5%       | yes                    | 100                    | –                             |
+| USDC           | 75% / 78%                 | 4.5%       | yes (primary)          | 10,000,000             | –                             |
+| USDT           | 75% / 78%                 | 4.5%       | yes (primary)          | 10,000,000             | –                             |
+| AQUA (phase 2) | 30% / 38.5% → 50% / 62.5% | 12.5%      | never                  | $0.5M-equiv            | –                             |
 
 Caps are in WHOLE TOKENS (the protocol multiplies by `10**decimals`), converted from the USD
 anchors at the reference prices documented in `OneInchEarnConfig`. The risk provider MUST
@@ -189,9 +189,9 @@ or the config engine's `updateCollateralSide`, only on evidence.
 
 ## 7. Rollback summary
 
-| After step | To roll back |
-| --- | --- |
-| 4.2 deploy | Discard; don't list. No user funds. |
-| 4.3 listing | `setReservePause` / `setReserveFreeze` the affected reserve (POOL_ADMIN/guardian). |
-| 4.5 gate | `setPoolImpl` back to vanilla `PoolInstance` (or gate-disabled), reversible any time. |
-| 4.7 handover | Irreversible without the DAO acting; do not run until 4.6 passes. |
+| After step   | To roll back                                                                          |
+| ------------ | ------------------------------------------------------------------------------------- |
+| 4.2 deploy   | Discard; don't list. No user funds.                                                   |
+| 4.3 listing  | `setReservePause` / `setReserveFreeze` the affected reserve (POOL_ADMIN/guardian).    |
+| 4.5 gate     | `setPoolImpl` back to vanilla `PoolInstance` (or gate-disabled), reversible any time. |
+| 4.7 handover | Irreversible without the DAO acting; do not run until 4.6 passes.                     |

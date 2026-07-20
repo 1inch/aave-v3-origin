@@ -134,11 +134,7 @@ library OneInchEarnHandover {
     return
       address(
         uint160(
-          uint256(
-            keccak256(
-              abi.encodePacked(bytes1(0xd6), bytes1(0x94), proxy, bytes1(0x01))
-            )
-          )
+          uint256(keccak256(abi.encodePacked(bytes1(0xd6), bytes1(0x94), proxy, bytes1(0x01))))
         )
       );
   }

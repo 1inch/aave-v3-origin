@@ -68,18 +68,8 @@ contract OneInchEarnDeploymentTest is OneInchEarnTestBase {
     OneInchEarnConfig.AssetListing[] memory listings = OneInchEarnConfig.listings(tokens, feeds);
     for (uint256 i = 0; i < listings.length; i++) {
       OneInchEarnConfig.AssetListing memory l = listings[i];
-      (
-        ,
-        uint256 ltv,
-        uint256 lt,
-        uint256 bonus,
-        uint256 reserveFactor,
-        ,
-        bool borrowing,
-        ,
-        ,
-
-      ) = dp.getReserveConfigurationData(l.asset);
+      (, uint256 ltv, uint256 lt, uint256 bonus, uint256 reserveFactor, , bool borrowing, , , ) = dp
+        .getReserveConfigurationData(l.asset);
       assertEq(ltv, l.ltv, string.concat(l.assetSymbol, ' ltv'));
       assertEq(lt, l.liqThreshold, string.concat(l.assetSymbol, ' lt'));
       assertEq(bonus, l.liquidationBonus, string.concat(l.assetSymbol, ' bonus'));
@@ -120,7 +110,11 @@ contract OneInchEarnDeploymentTest is OneInchEarnTestBase {
   }
 
   function test_marketLevelSettings() public view {
-    assertEq(pool.FLASHLOAN_PREMIUM_TOTAL(), OneInchEarnConfig.FLASH_LOAN_PREMIUM_TOTAL, 'flash premium');
+    assertEq(
+      pool.FLASHLOAN_PREMIUM_TOTAL(),
+      OneInchEarnConfig.FLASH_LOAN_PREMIUM_TOTAL,
+      'flash premium'
+    );
     // aTokens accrue interest to the market treasury (Collector).
     address aToken = pool.getReserveAToken(tokens.weth);
     assertEq(IAToken(aToken).RESERVE_TREASURY_ADDRESS(), report.treasury, 'treasury wiring');
@@ -156,15 +150,7 @@ contract OneInchEarnDeploymentTest is OneInchEarnTestBase {
       string.concat('1x', symbol),
       'aToken symbol must be 1x-branded'
     );
-    assertEq(
-      IERC20Metadata(aToken).name(),
-      string.concat('1inch Earn ', symbol),
-      'aToken name'
-    );
-    assertEq(
-      IERC20Metadata(vToken).symbol(),
-      string.concat('1xDebt', symbol),
-      'debt token symbol'
-    );
+    assertEq(IERC20Metadata(aToken).name(), string.concat('1inch Earn ', symbol), 'aToken name');
+    assertEq(IERC20Metadata(vToken).symbol(), string.concat('1xDebt', symbol), 'debt token symbol');
   }
 }
