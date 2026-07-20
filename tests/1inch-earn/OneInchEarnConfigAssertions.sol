@@ -83,7 +83,11 @@ abstract contract OneInchEarnConfigAssertions is Test {
   }
 
   /// @notice Asserts the red-row policy: never borrowable, never flashloanable, but collateral.
-  function _assertRedRow(AaveProtocolDataProvider dp, address asset, string memory sym) internal view {
+  function _assertRedRow(
+    AaveProtocolDataProvider dp,
+    address asset,
+    string memory sym
+  ) internal view {
     (, , , , , bool collateral, bool borrowing, , , ) = dp.getReserveConfigurationData(asset);
     assertTrue(collateral, string.concat(sym, ': red-row must be collateral'));
     assertFalse(borrowing, string.concat(sym, ': red-row must not borrow'));

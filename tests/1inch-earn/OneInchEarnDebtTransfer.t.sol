@@ -284,7 +284,11 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
 
     vm.prank(borrower);
     usdcDebt.transfer(receiver, 10_000e6);
-    assertEq(usdcDebt.creditAllowance(receiver, borrower), type(uint256).max, 'infinite credit persists');
+    assertEq(
+      usdcDebt.creditAllowance(receiver, borrower),
+      type(uint256).max,
+      'infinite credit persists'
+    );
   }
 
   function test_transferFromByOwner() public {

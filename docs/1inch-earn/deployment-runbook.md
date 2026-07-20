@@ -203,10 +203,16 @@ Consent + safety model (ported from `1inch/money-market-protocol`):
 
 - Inverted approval: `approve`/`permit` stay disabled. The debt RECEIVER opts in by calling
   `credit(spender, amount)` (or signing `creditWithSig`, e.g. inside an Aqua order). A debtor
-  can never push debt onto an unwilling address.
+  can never push debt onto an unwilling address, and `transferFrom` requires `from == msg.sender`
+  (debt only moves by its owner; third-party/settlement moves use the adapter below).
+- Full exit: pass `type(uint256).max` to move the caller's entire debt (avoids scaled-rounding dust).
 - The receiver backs the assumed debt with THEIR OWN collateral; `finalizeDebtTransfer`
   health-checks the receiver (the sender only improves). Optional per-reserve KYC gate on the
-  receiver via `setDebtReceiverGate` (reuses the `KycNFT`).
+  receiver via `setDebtReceiverGate` (reuses the `KycNFT`), and an optional extra receiver
+  health-factor margin via `setReceiverMinHealthFactor` (0 = off; e.g. 1.1e18 for a 10% buffer).
+- If `transferable` is enabled while the market still runs the vanilla pool (no
+  `finalizeDebtTransfer`), transfers revert (fail-closed) — enabling transfers requires the
+  `OneInchPoolInstance` upgrade first.
 
 Use cases and the Aqua limitation:
 
@@ -216,8 +222,13 @@ Use cases and the Aqua limitation:
 - A two-leg debt-for-debt SWAP (`1xdUSDT` <-> `1xdUSDC`) does NOT settle as two raw transfers:
   whichever leg lands first leaves that receiver transiently holding both debts and fails the
   per-leg receiver HF check (proven by `test_naiveTwoLegSwapReverts`). Route debt SWAPS through
-  a P2P debt-swap adapter (repay/reborrow ordering, no double-debt) instead.
+  the `OneInchEarnDebtSwapAdapter` (flashloan + repay/reborrow via two-sided credit delegation,
+  no double-debt, no DEX) — see `OneInchEarnDebtSwap.t.sol`.
 - To disable transfers again for a reserve: `setTransferable(false)` (POOL_ADMIN), one tx.
+
+An automated config verifier (`OneInchEarnConfigVerification.t.sol`, reused on the mainnet fork)
+asserts every reserve/eMode/oracle/1x-naming/red-row matches `OneInchEarnConfig` — the gate the
+step 4.6 config audit should run.
 
 ## 7. Rollback summary
 
