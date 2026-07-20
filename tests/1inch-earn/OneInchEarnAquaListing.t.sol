@@ -9,6 +9,7 @@ import {ACLManager} from '../../src/contracts/protocol/configuration/ACLManager.
 import {AaveProtocolDataProvider} from '../../src/contracts/helpers/AaveProtocolDataProvider.sol';
 import {TestnetERC20} from '../../src/contracts/mocks/testnet-helpers/TestnetERC20.sol';
 import {MockAggregator} from '../../src/contracts/mocks/oracle/CLAggregators/MockAggregator.sol';
+import {Errors} from '../../src/contracts/protocol/libraries/helpers/Errors.sol';
 import {AquaListingPayload} from '../../src/deployments/projects/1inch-earn/AquaListingPayload.sol';
 
 /**
@@ -86,7 +87,7 @@ contract OneInchEarnAquaListingTest is OneInchEarnTestBase {
     // A user with WETH collateral still cannot borrow AQUA (borrowing disabled).
     _supplyWeth(user, 50 ether);
     vm.prank(user);
-    vm.expectRevert(); // BorrowingNotEnabled
+    vm.expectRevert(Errors.BorrowingNotEnabled.selector);
     pool.borrow(aqua, 1_000e18, 2, 0, user);
   }
 

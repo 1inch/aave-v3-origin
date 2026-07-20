@@ -26,7 +26,7 @@ contract KycNFTTest is Test {
 
   function setUp() public {
     (owner, ownerPk) = makeAddrAndKey('kycOwner');
-    kyc = new KycNFT(NAME, VERSION, VERSION, owner);
+    kyc = new KycNFT(NAME, 'KYC', VERSION, owner);
   }
 
   // --------------------------------- owner mint/burn/transfer ---------------------------------

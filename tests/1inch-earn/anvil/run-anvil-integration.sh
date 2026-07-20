@@ -48,10 +48,12 @@ echo "  anvil up at block $(cast block-number --rpc-url "$URL")"
 SCRIPT_FLAGS="--rpc-url $URL --private-key $PK --broadcast --slow --skip-simulation"
 
 echo "== 1. deploy market =="
+PRE_REPORT=$(ls -t reports/*-market-deployment.json 2>/dev/null | head -1 || true)
 forge script scripts/1inch-earn/Deploy1inchEarnMarket.sol:Deploy1inchEarnMarket $SCRIPT_FLAGS >/tmp/anvil-deploy.log 2>&1 \
   || { tail -40 /tmp/anvil-deploy.log; fail "market deploy script"; }
-REPORT=$(ls -t reports/*-market-deployment.json | head -1)
-[ -n "$REPORT" ] || fail "no market report written"
+REPORT=$(ls -t reports/*-market-deployment.json 2>/dev/null | head -1 || true)
+# Guard against silently picking up a STALE report from an earlier run.
+[ -n "$REPORT" ] && [ "$REPORT" != "$PRE_REPORT" ] || fail "deploy script wrote no fresh market report"
 export REPORT_PATH="$REPORT"
 POOL=$(jq -r .poolProxy "$REPORT")
 DP=$(jq -r .protocolDataProvider "$REPORT")

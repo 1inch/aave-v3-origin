@@ -45,10 +45,13 @@ contract OneInchEarnScenariosTest is OneInchEarnTestBase {
     (, , , , , uint256 hf) = pool.getUserAccountData(user);
     assertGt(hf, 1e18, 'eMode borrower healthy');
 
-    // Counterfactual: same collateral, NO eMode -> the same borrow exceeds base LTV and reverts.
+    // Counterfactual: same collateral, NO eMode -> the same borrow busts the base wstETH LT
+    // (83%: 78k * 0.83 = 64.7k < 66k debt) and reverts. v3.7 borrow mints debt first and
+    // health-checks after ("actions then validation"), and validateHFAndLtv checks HF before
+    // LTV, so the failure surfaces as the HF error.
     _mintSupply(user2, tokens.wstEth, 20e18);
     vm.prank(user2);
-    vm.expectRevert(); // CollateralCannotCoverNewBorrow
+    vm.expectRevert(Errors.HealthFactorLowerThanLiquidationThreshold.selector);
     pool.borrow(tokens.weth, 20 ether, 2, 0, user2);
   }
 
