@@ -68,7 +68,11 @@ contract OneInchEarnAquaListingTest is OneInchEarnTestBase {
 
     // 1x branding.
     assertEq(IERC20Metadata(pool.getReserveAToken(aqua)).symbol(), '1xAQUA', 'aToken 1xAQUA');
-    assertEq(IERC20Metadata(pool.getReserveVariableDebtToken(aqua)).symbol(), '1xdAQUA', 'debt 1xdAQUA');
+    assertEq(
+      IERC20Metadata(pool.getReserveVariableDebtToken(aqua)).symbol(),
+      '1xdAQUA',
+      'debt 1xdAQUA'
+    );
   }
 
   function test_aquaCannotBeBorrowed() public {

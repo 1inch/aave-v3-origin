@@ -35,19 +35,42 @@ contract OneInchEarnConfigInvariantsTest is Test {
         ls[i].liquidationBonus
       );
       // Reserve factor and liquidation protocol fee must be valid percentages (< 100%).
-      assertLt(ls[i].reserveFactor, 100_00, string.concat(ls[i].assetSymbol, ': reserveFactor<100%'));
-      assertLt(ls[i].liqProtocolFee, 100_00, string.concat(ls[i].assetSymbol, ': liqProtocolFee<100%'));
+      assertLt(
+        ls[i].reserveFactor,
+        100_00,
+        string.concat(ls[i].assetSymbol, ': reserveFactor<100%')
+      );
+      assertLt(
+        ls[i].liqProtocolFee,
+        100_00,
+        string.concat(ls[i].assetSymbol, ': liqProtocolFee<100%')
+      );
       // All launch reserves are collateral with a positive supply cap.
       assertGt(ls[i].liqThreshold, 0, string.concat(ls[i].assetSymbol, ': is collateral'));
       assertGt(ls[i].supplyCap, 0, string.concat(ls[i].assetSymbol, ': supply cap set'));
       // Interest-rate optimal usage must sit in the strategy's valid band (1%..99%).
-      assertGe(ls[i].rates.optimalUsageRatio, 1_00, string.concat(ls[i].assetSymbol, ': optimal>=1%'));
-      assertLe(ls[i].rates.optimalUsageRatio, 99_00, string.concat(ls[i].assetSymbol, ': optimal<=99%'));
+      assertGe(
+        ls[i].rates.optimalUsageRatio,
+        1_00,
+        string.concat(ls[i].assetSymbol, ': optimal>=1%')
+      );
+      assertLe(
+        ls[i].rates.optimalUsageRatio,
+        99_00,
+        string.concat(ls[i].assetSymbol, ': optimal<=99%')
+      );
       // A borrowable reserve needs a borrow cap; a non-borrowable one must not be flashloanable
       // (the red-row policy) and carries no borrow cap.
       if (!ls[i].enabledToBorrow) {
-        assertFalse(ls[i].flashloanable, string.concat(ls[i].assetSymbol, ': non-borrowable=>no flashloan'));
-        assertEq(ls[i].borrowCap, 0, string.concat(ls[i].assetSymbol, ': non-borrowable=>borrowCap 0'));
+        assertFalse(
+          ls[i].flashloanable,
+          string.concat(ls[i].assetSymbol, ': non-borrowable=>no flashloan')
+        );
+        assertEq(
+          ls[i].borrowCap,
+          0,
+          string.concat(ls[i].assetSymbol, ': non-borrowable=>borrowCap 0')
+        );
       }
     }
   }

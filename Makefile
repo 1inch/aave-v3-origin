@@ -62,6 +62,11 @@ handover-1inch-earn :;
 # Local (mock) + optional mainnet-fork dress rehearsal (set RPC_MAINNET for the fork tests)
 test-1inch-earn :; forge test --match-path 'tests/1inch-earn/*' -vvv
 
+# Anvil integration test: runs the REAL deploy/list/seed/gate/handover scripts against a
+# mainnet-forked anvil node and asserts on-chain state via cast (needs anvil+cast+jq;
+# RPC_MAINNET optional, defaults to a public node).
+test-1inch-earn-anvil :; bash tests/1inch-earn/anvil/run-anvil-integration.sh
+
 
 # Invariants
 echidna:

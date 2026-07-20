@@ -68,16 +68,23 @@ LEDGER_SENDER=<ledger address>
 ## 3. Dress rehearsal (run every time before mainnet)
 
 ```
-# Local, mock-based (no network): 1x branding, launch-book params, red-row policy, gate
-forge test --match-path 'tests/1inch-earn/OneInchEarnDeployment.t.sol' -vv
-forge test --match-path 'tests/1inch-earn/OneInchEarnLiquidationGate.t.sol' -vv
+# Full 1inch Earn suite: unit (config invariants, KycNFT, AQUA payload, handover),
+# e2e scenarios (eMode loops, liquidations, deficit+Umbrella, gateway), debt
+# transfer/swap, config verification — plus the mainnet-fork tests when RPC_MAINNET is set.
+RPC_MAINNET=<rpc> make test-1inch-earn
 
-# Mainnet fork: real tokens + real Aave-mainline price adapters, e2e smoke, gated
-# liquidation, and the full handover permissions audit
-RPC_MAINNET=<rpc> forge test --match-path 'tests/1inch-earn/OneInchEarnMainnetFork.t.sol' -vv
+# Anvil integration test: runs the REAL deploy scripts (deploy -> list -> seed -> gate ->
+# handover) against a mainnet-forked anvil node with a test key, then simulates the
+# post-handover DAO enabling debt transfers (impersonation) and a live borrow +
+# consent-based debt-handoff journey via cast. This is the closest rehearsal to the
+# actual mainnet procedure short of using the Ledger.
+RPC_MAINNET=<rpc> make test-1inch-earn-anvil
 ```
 
-All must be green. The fork suite skips automatically when `RPC_MAINNET` is unset.
+All must be green. The fork suite skips automatically when `RPC_MAINNET` is unset; the anvil
+harness defaults to a public node. Note: `OneInchDebtTransferLogic` (the externally-linked
+library backing `OneInchPoolInstance.finalizeDebtTransfer`) is auto-deployed and linked by
+`forge script` during the gate install broadcast — it is NOT part of `make deploy-libs`.
 
 ## 4. Deploy — step by step
 

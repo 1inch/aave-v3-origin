@@ -145,7 +145,11 @@ contract OneInchEarnScenariosTest is OneInchEarnTestBase {
     vm.prank(user);
     pool.borrow(tokens.usdc, 70_000e6, 2, 0, user);
     // WBTC -20% -> HF < 1 (78% LT * 80k = 62.4k < 70k debt).
-    vm.mockCall(feeds.wbtc, abi.encodeWithSignature('latestAnswer()'), abi.encode(int256(80_000e8)));
+    vm.mockCall(
+      feeds.wbtc,
+      abi.encodeWithSignature('latestAnswer()'),
+      abi.encode(int256(80_000e8))
+    );
     (, , , , , uint256 hf) = pool.getUserAccountData(user);
     assertLt(hf, 1e18, 'position liquidatable');
   }
