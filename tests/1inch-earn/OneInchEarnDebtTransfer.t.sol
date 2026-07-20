@@ -8,6 +8,7 @@ import {IReserveInterestRateStrategy} from '../../src/contracts/interfaces/IRese
 import {IPoolConfigurator} from '../../src/contracts/interfaces/IPoolConfigurator.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {TestnetERC20} from '../../src/contracts/mocks/testnet-helpers/TestnetERC20.sol';
+import {Errors} from '../../src/contracts/protocol/libraries/helpers/Errors.sol';
 import {KycNFT} from '../../src/deployments/projects/1inch-earn/KycNFT.sol';
 import {OneInchPoolInstance} from '../../src/deployments/projects/1inch-earn/OneInchPoolInstance.sol';
 import {OneInchVariableDebtToken} from '../../src/deployments/projects/1inch-earn/OneInchVariableDebtToken.sol';
@@ -204,6 +205,76 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
     vm.prank(borrower);
     usdcDebt.transfer(sigReceiver, amount);
     assertApproxEqAbs(usdcDebt.balanceOf(sigReceiver), amount, 2, 'sig receiver assumed debt');
+  }
+
+  function test_revert_creditWithSigExpired() public {
+    uint256 receiverPk = 0xA11CE;
+    address sigReceiver = vm.addr(receiverPk);
+    uint256 deadline = block.timestamp + 1;
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      receiverPk,
+      _creditDigest(sigReceiver, borrower, 1e6, deadline)
+    );
+    vm.warp(deadline + 1);
+    vm.expectRevert(Errors.InvalidExpiration.selector);
+    usdcDebt.creditWithSig(sigReceiver, borrower, 1e6, deadline, v, r, s);
+  }
+
+  function test_revert_creditWithSigWrongSigner() public {
+    address sigReceiver = vm.addr(0xA11CE);
+    uint256 deadline = block.timestamp + 1 hours;
+    // Signed by a different key than the claimed receiver.
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      0xBEEF,
+      _creditDigest(sigReceiver, borrower, 1e6, deadline)
+    );
+    vm.expectRevert(Errors.InvalidSignature.selector);
+    usdcDebt.creditWithSig(sigReceiver, borrower, 1e6, deadline, v, r, s);
+  }
+
+  function test_revert_creditWithSigReplay() public {
+    uint256 receiverPk = 0xA11CE;
+    address sigReceiver = vm.addr(receiverPk);
+    _supply(sigReceiver, tokens.wbtc, 2e8);
+    uint256 deadline = block.timestamp + 1 hours;
+    (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+      receiverPk,
+      _creditDigest(sigReceiver, borrower, 1e6, deadline)
+    );
+    usdcDebt.creditWithSig(sigReceiver, borrower, 1e6, deadline, v, r, s);
+    // Nonce consumed: replaying the same signature must fail.
+    vm.expectRevert(Errors.InvalidSignature.selector);
+    usdcDebt.creditWithSig(sigReceiver, borrower, 1e6, deadline, v, r, s);
+  }
+
+  function test_creditIsOverwriteNotIncrement() public {
+    vm.startPrank(receiver);
+    usdcDebt.credit(borrower, 10_000e6);
+    usdcDebt.credit(borrower, 400e6); // approve-like: overwrites, does not add
+    vm.stopPrank();
+    assertEq(usdcDebt.creditAllowance(receiver, borrower), 400e6, 'credit overwritten');
+
+    vm.prank(borrower);
+    vm.expectRevert(OneInchVariableDebtToken.InsufficientCredit.selector);
+    usdcDebt.transfer(receiver, 500e6);
+  }
+
+  function _creditDigest(
+    address sigReceiver,
+    address spender,
+    uint256 value,
+    uint256 deadline
+  ) internal view returns (bytes32) {
+    bytes32 structHash = keccak256(
+      abi.encode(
+        usdcDebt.CREDIT_WITH_SIG_TYPEHASH(),
+        spender,
+        value,
+        usdcDebt.creditNonces(sigReceiver),
+        deadline
+      )
+    );
+    return keccak256(abi.encodePacked('\x19\x01', usdcDebt.DOMAIN_SEPARATOR(), structHash));
   }
 
   function test_naiveTwoLegSwapReverts() public {

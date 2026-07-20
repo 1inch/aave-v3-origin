@@ -100,6 +100,68 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
     assertEq(IERC20(tokens.usdt).balanceOf(address(adapter)), 0, 'no USDT dust in adapter');
   }
 
+  function test_partialDebtSwap() public {
+    // Swapping only half the books is fine: each repay burns exactly the flashed amount.
+    uint256 half = DEBT / 2;
+    vm.prank(whale);
+    adapter.swapDebt(
+      OneInchEarnDebtSwapAdapter.DebtSwapParams({
+        maker: maker,
+        taker: taker,
+        makerDebtAsset: tokens.usdt,
+        makerDebtAmount: half,
+        takerDebtAsset: tokens.usdc,
+        takerDebtAmount: half
+      })
+    );
+    assertApproxEqAbs(_debt(tokens.usdt, maker), DEBT - half, 2, 'maker keeps residual USDT debt');
+    assertApproxEqAbs(_debt(tokens.usdc, maker), half, 2, 'maker assumed half USDC');
+    assertApproxEqAbs(_debt(tokens.usdc, taker), DEBT - half, 2, 'taker keeps residual USDC debt');
+    assertApproxEqAbs(_debt(tokens.usdt, taker), half, 2, 'taker assumed half USDT');
+  }
+
+  function test_premiumPaidByCallerOnly() public {
+    // Turn on a non-zero flashloan premium so the pull-from-caller path executes.
+    address configurator = report.poolConfiguratorProxy;
+    vm.prank(deployer);
+    (bool ok, ) = configurator.call(
+      abi.encodeWithSignature('updateFlashloanPremium(uint128)', uint128(9)) // 0.09%
+    );
+    assertTrue(ok, 'set premium');
+
+    uint256 whaleUsdcBefore = IERC20(tokens.usdc).balanceOf(whale);
+    uint256 whaleUsdtBefore = IERC20(tokens.usdt).balanceOf(whale);
+    uint256 makerUsdtBefore = IERC20(tokens.usdt).balanceOf(maker);
+    uint256 takerUsdcBefore = IERC20(tokens.usdc).balanceOf(taker);
+
+    vm.prank(whale);
+    adapter.swapDebt(
+      OneInchEarnDebtSwapAdapter.DebtSwapParams({
+        maker: maker,
+        taker: taker,
+        makerDebtAsset: tokens.usdt,
+        makerDebtAmount: DEBT,
+        takerDebtAsset: tokens.usdc,
+        takerDebtAmount: DEBT
+      })
+    );
+
+    uint256 premium = (DEBT * 9) / 10_000;
+    assertEq(
+      whaleUsdtBefore - IERC20(tokens.usdt).balanceOf(whale),
+      premium,
+      'caller paid the USDT premium'
+    );
+    assertEq(
+      whaleUsdcBefore - IERC20(tokens.usdc).balanceOf(whale),
+      premium,
+      'caller paid the USDC premium'
+    );
+    // The swapped parties' wallets are untouched (debt moved, no token pulls from them).
+    assertEq(IERC20(tokens.usdt).balanceOf(maker), makerUsdtBefore, 'maker wallet untouched');
+    assertEq(IERC20(tokens.usdc).balanceOf(taker), takerUsdcBefore, 'taker wallet untouched');
+  }
+
   function test_revert_withoutMakerDelegation() public {
     // Revoke the maker's delegation -> the borrow-on-behalf leg reverts, unwinding the swap.
     ICreditDelegationToken usdcDebt = ICreditDelegationToken(
@@ -119,6 +181,75 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
         takerDebtAmount: DEBT
       })
     );
+  }
+
+  function test_revert_withoutTakerDelegation() public {
+    ICreditDelegationToken usdtDebt = ICreditDelegationToken(
+      pool.getReserveVariableDebtToken(tokens.usdt)
+    );
+    vm.prank(taker);
+    usdtDebt.approveDelegation(address(adapter), 0);
+    vm.prank(whale);
+    vm.expectRevert();
+    adapter.swapDebt(
+      OneInchEarnDebtSwapAdapter.DebtSwapParams({
+        maker: maker,
+        taker: taker,
+        makerDebtAsset: tokens.usdt,
+        makerDebtAmount: DEBT,
+        takerDebtAsset: tokens.usdc,
+        takerDebtAmount: DEBT
+      })
+    );
+  }
+
+  function test_revert_swapExceedingActualDebt() public {
+    // Asking to swap more than the maker actually owes: repay burns less than the flashed
+    // amount -> DebtBelowSwapAmount guard unwinds the whole swap (no over-borrow, no stuck funds).
+    vm.prank(whale);
+    vm.expectRevert(OneInchEarnDebtSwapAdapter.DebtBelowSwapAmount.selector);
+    adapter.swapDebt(
+      OneInchEarnDebtSwapAdapter.DebtSwapParams({
+        maker: maker,
+        taker: taker,
+        makerDebtAsset: tokens.usdt,
+        makerDebtAmount: DEBT * 2,
+        takerDebtAsset: tokens.usdc,
+        takerDebtAmount: DEBT
+      })
+    );
+  }
+
+  function test_revert_executeOperationNotPool() public {
+    // Direct invocation of the flashloan callback must be rejected.
+    address[] memory assets = new address[](2);
+    uint256[] memory amounts = new uint256[](2);
+    uint256[] memory premiums = new uint256[](2);
+    vm.expectRevert(OneInchEarnDebtSwapAdapter.CallerNotPool.selector);
+    adapter.executeOperation(assets, amounts, premiums, address(adapter), '');
+  }
+
+  function test_revert_flashloanInitiatorNotAdapter() public {
+    // A third party flash-borrowing INTO the adapter (initiator != adapter) must be rejected,
+    // otherwise an attacker could trigger swaps with forged params.
+    address[] memory assets = new address[](1);
+    assets[0] = tokens.usdc;
+    uint256[] memory amounts = new uint256[](1);
+    amounts[0] = 1_000e6;
+    uint256[] memory modes = new uint256[](1);
+
+    OneInchEarnDebtSwapAdapter.DebtSwapParams memory p = OneInchEarnDebtSwapAdapter.DebtSwapParams({
+      maker: maker,
+      taker: taker,
+      makerDebtAsset: tokens.usdt,
+      makerDebtAmount: DEBT,
+      takerDebtAsset: tokens.usdc,
+      takerDebtAmount: DEBT
+    });
+
+    vm.prank(whale);
+    vm.expectRevert(); // bubbled InitiatorNotAdapter inside the flashloan
+    pool.flashLoan(address(adapter), assets, amounts, modes, whale, abi.encode(p, whale), 0);
   }
 
   function _debt(address asset, address user) internal view returns (uint256) {
