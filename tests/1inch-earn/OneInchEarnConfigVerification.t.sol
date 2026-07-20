@@ -46,4 +46,12 @@ contract OneInchEarnConfigVerificationTest is OneInchEarnTestBase, OneInchEarnCo
     borrowable[0] = tokens.weth;
     _assertEModeMatchesConfig(pool, OneInchEarnConfig.ethCorrelatedEMode(), collateral, borrowable);
   }
+
+  function test_stablecoinEModeMatchesConfig() public view {
+    address[] memory members = new address[](2);
+    members[0] = tokens.usdc;
+    members[1] = tokens.usdt;
+    // USDC/USDT are both collateral and borrowable in the stablecoin eMode.
+    _assertEModeMatchesConfig(pool, OneInchEarnConfig.stablecoinEMode(), members, members);
+  }
 }

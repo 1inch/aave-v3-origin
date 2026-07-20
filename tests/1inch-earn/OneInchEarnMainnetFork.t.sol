@@ -405,7 +405,7 @@ contract OneInchEarnMainnetForkTest is Test, OneInchEarnConfigAssertions {
     OneInchEarnListingPayload payload = new OneInchEarnListingPayload(
       report,
       listings,
-      OneInchEarnConfig.ethCorrelatedEMode()
+      OneInchEarnConfig.launchEModes()
     );
 
     vm.prank(deployer);

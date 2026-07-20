@@ -78,7 +78,7 @@ abstract contract OneInchEarnTestBase is BatchTestProcedures {
     listingPayload = new OneInchEarnListingPayload(
       report,
       listings,
-      OneInchEarnConfig.ethCorrelatedEMode()
+      OneInchEarnConfig.launchEModes()
     );
 
     vm.prank(deployer);
