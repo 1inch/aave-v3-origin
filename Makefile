@@ -50,6 +50,9 @@ deploy-1inch-earn :;
 list-1inch-earn :;
 	forge script scripts/1inch-earn/List1inchEarnAssets.sol:List1inchEarnAssets --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
 
+seed-1inch-earn :;
+	forge script scripts/1inch-earn/Seed1inchEarn.sol:Seed1inchEarn --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
+
 install-1inch-earn-gate :;
 	forge script scripts/1inch-earn/Install1inchEarnLiquidatorGate.sol:Install1inchEarnLiquidatorGate --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast --verify
 

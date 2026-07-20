@@ -38,11 +38,14 @@ interface IAccessControlLike {
  */
 library OneInchEarnHandover {
   bytes32 internal constant DEFAULT_ADMIN_ROLE = bytes32(0);
+  /// @dev Pool addresses-provider key for the v3.3 bad-debt backstop (see `Pool.UMBRELLA`).
+  bytes32 internal constant UMBRELLA = 'UMBRELLA';
 
   struct HandoverTargets {
     address daoExecutor; // marketOwner, POOL_ADMIN, DEFAULT_ADMIN, treasury admin, proxy admins
     address guardian; // EMERGENCY_ADMIN (SafeSnap guardian multisig)
     address riskProvider; // RISK_ADMIN (Chaos Labs / Gauntlet-class)
+    address umbrella; // v3.3 deficit backstop; address(0) = skip wiring
   }
 
   function execute(
@@ -59,6 +62,12 @@ library OneInchEarnHandover {
 
     IPoolAddressesProvider provider = IPoolAddressesProvider(report.poolAddressesProvider);
     ACLManager acl = ACLManager(report.aclManager);
+
+    // 0. Optionally wire the v3.3 deficit backstop (Umbrella). Must happen while the deployer
+    // still owns the provider. Skipped when unset (wire later via a DAO governance tx).
+    if (targets.umbrella != address(0)) {
+      provider.setAddress(UMBRELLA, targets.umbrella);
+    }
 
     // 1. Point the addresses-provider ACL_ADMIN slot at the DAO (seeds admin on any future
     // ACLManager redeploy). Must happen while the deployer still owns the provider.

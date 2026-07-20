@@ -309,10 +309,12 @@ contract OneInchEarnMainnetForkTest is Test, OneInchEarnConfigAssertions {
   function test_fork_handoverRevokesDeployer() public {
     if (_skip()) return;
 
+    address umbrella = makeAddr('oneInchUmbrella');
     OneInchEarnHandover.HandoverTargets memory targets = OneInchEarnHandover.HandoverTargets({
       daoExecutor: dao,
       guardian: guardian,
-      riskProvider: riskProvider
+      riskProvider: riskProvider,
+      umbrella: umbrella
     });
 
     vm.startPrank(deployer);
@@ -342,6 +344,11 @@ contract OneInchEarnMainnetForkTest is Test, OneInchEarnConfigAssertions {
     assertEq(IOwnableLike(report.emissionManager).owner(), dao, 'emission manager owned by dao');
     assertEq(IOwnableLike(report.wrappedTokenGateway).owner(), dao, 'gateway owned by dao');
     assertEq(IPoolAddressesProvider(report.poolAddressesProvider).getACLAdmin(), dao, 'acl admin');
+    assertEq(
+      IPoolAddressesProvider(report.poolAddressesProvider).getAddress('UMBRELLA'),
+      umbrella,
+      'umbrella backstop wired'
+    );
 
     // Transparent-proxy admins (upgrade rights) moved to the DAO.
     assertEq(_proxyAdminOwner(report.treasury), dao, 'treasury proxy admin -> dao');

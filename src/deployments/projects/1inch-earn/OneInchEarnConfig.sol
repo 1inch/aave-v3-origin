@@ -130,10 +130,13 @@ library OneInchEarnConfig {
     // Configurator format: 101_00 = 1% bonus.
     uint16 liquidationBonus;
     string label;
-    // false = standard liquid eMode. Setting true (isolated eMode, v3.7) would zero
-    // the LTV of any collateral outside the category for users inside the eMode.
-    // Decision: launch non-isolated to keep pro cross-margin flexibility; the DAO can
-    // flip it later via `setEModeCategoryIsolated` without liquidating existing users.
+    // DECISION (deliberate, asserted in OneInchEarnConfigVerification): launch NON-isolated.
+    // v3.7's isolated-emode doc recommends isolated=true for correlated eModes so non-ETH
+    // collateral cannot add borrowing power while in the category. We launch `false` on purpose
+    // to preserve the briefing's cross-margin health-factor model (a maker in the ETH eMode can
+    // still use other enabled collateral at its base LTV). This is a risk-provider call and is
+    // reversible in one governance tx via `setEModeCategoryIsolated` WITHOUT liquidating existing
+    // users (non-eMode collateral simply drops to LTV 0 on flip; liquidation threshold unchanged).
     bool isolated;
   }
 

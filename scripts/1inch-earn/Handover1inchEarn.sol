@@ -30,7 +30,8 @@ contract Handover1inchEarn is OneInchEarnReportReader {
     OneInchEarnHandover.HandoverTargets memory targets = OneInchEarnHandover.HandoverTargets({
       daoExecutor: vm.envAddress('DAO_EXECUTOR'),
       guardian: vm.envAddress('GUARDIAN'),
-      riskProvider: vm.envAddress('RISK_PROVIDER')
+      riskProvider: vm.envAddress('RISK_PROVIDER'),
+      umbrella: vm.envOr('UMBRELLA', address(0)) // optional v3.3 deficit backstop; wire later if unset
     });
 
     vm.startBroadcast();
