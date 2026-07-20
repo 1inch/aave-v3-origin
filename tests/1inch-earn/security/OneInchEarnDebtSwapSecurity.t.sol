@@ -110,7 +110,11 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
     // Prove >$180k of previously-locked WBTC is now freely withdrawable.
     uint256 freed = 180_000e8;
     (, , uint256 availableBorrowsBase, , , ) = pool.getUserAccountData(attacker);
-    assertGt(availableBorrowsBase, freed, 'attacker unlocked large borrowing power at victim expense');
+    assertGt(
+      availableBorrowsBase,
+      freed,
+      'attacker unlocked large borrowing power at victim expense'
+    );
   }
 
   /**
@@ -197,7 +201,11 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
     vm.stopPrank();
 
     // Stranger received no tokens/debt-relief, only spent the premium.
-    assertLt(IERC20(tokens.usdc).balanceOf(stranger), strangerUsdcBefore, 'stranger only paid premium');
+    assertLt(
+      IERC20(tokens.usdc).balanceOf(stranger),
+      strangerUsdcBefore,
+      'stranger only paid premium'
+    );
     assertEq(_debt(tokens.usdc, stranger), 0, 'stranger assumed no debt');
     assertEq(_debt(tokens.usdt, stranger), 0, 'stranger assumed no debt');
   }

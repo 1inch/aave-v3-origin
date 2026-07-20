@@ -101,7 +101,11 @@ contract OneInchEarnLiquidationSecurityTest is OneInchEarnTestBase {
     vm.prank(attacker); // a non-KYC EOA initiates
     pool.flashLoanSimple(address(receiver), tokens.usdc, amount, '', 0);
     // Reaching here (no OnlyKycLiquidators revert) proves flashloans are ungated.
-    assertGt(IERC20(tokens.usdc).balanceOf(pool.getReserveAToken(tokens.usdc)), 0, 'flashloan settled');
+    assertGt(
+      IERC20(tokens.usdc).balanceOf(pool.getReserveAToken(tokens.usdc)),
+      0,
+      'flashloan settled'
+    );
   }
 
   function test_gateDoesNotBlockDeficitElimination() public {
@@ -173,7 +177,11 @@ contract OneInchEarnLiquidationSecurityTest is OneInchEarnTestBase {
 
     // The non-KYC beneficiary ends up with the seized collateral — gating is per-caller, so a
     // KYC holder can service others. This is by design (documented), not a bypass of the gate.
-    assertGt(IERC20(tokens.wbtc).balanceOf(attacker), 0, 'non-KYC beneficiary received seized WBTC');
+    assertGt(
+      IERC20(tokens.wbtc).balanceOf(attacker),
+      0,
+      'non-KYC beneficiary received seized WBTC'
+    );
   }
 
   // --------------------------------- helpers -----------------------------------

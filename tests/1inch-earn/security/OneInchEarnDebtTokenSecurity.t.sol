@@ -165,7 +165,11 @@ contract OneInchEarnDebtTokenSecurityTest is OneInchEarnTestBase {
 
     // Sanity: it is valid on the USDC token it was signed for.
     usdcDebt.creditWithSig(sigReceiver, borrower, 10_000e6, deadline, v, r, s);
-    assertEq(usdcDebt.creditAllowance(sigReceiver, borrower), 10_000e6, 'valid on intended reserve');
+    assertEq(
+      usdcDebt.creditAllowance(sigReceiver, borrower),
+      10_000e6,
+      'valid on intended reserve'
+    );
   }
 
   // --------------------------- disabled ERC20 approve path stays disabled ---------------------------
