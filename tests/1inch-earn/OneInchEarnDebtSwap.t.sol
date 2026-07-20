@@ -71,6 +71,8 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
   }
 
   function test_p2pDebtSwap() public {
+    // The caller (whale) pays the flashloan premium and has approved the adapter.
+    vm.prank(whale);
     adapter.swapDebt(
       OneInchEarnDebtSwapAdapter.DebtSwapParams({
         maker: maker,
@@ -78,8 +80,7 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
         makerDebtAsset: tokens.usdt,
         makerDebtAmount: DEBT,
         takerDebtAsset: tokens.usdc,
-        takerDebtAmount: DEBT,
-        premiumPayer: whale
+        takerDebtAmount: DEBT
       })
     );
 
@@ -106,6 +107,7 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
     );
     vm.prank(maker);
     usdcDebt.approveDelegation(address(adapter), 0);
+    vm.prank(whale);
     vm.expectRevert();
     adapter.swapDebt(
       OneInchEarnDebtSwapAdapter.DebtSwapParams({
@@ -114,8 +116,7 @@ contract OneInchEarnDebtSwapTest is OneInchEarnTestBase {
         makerDebtAsset: tokens.usdt,
         makerDebtAmount: DEBT,
         takerDebtAsset: tokens.usdc,
-        takerDebtAmount: DEBT,
-        premiumPayer: whale
+        takerDebtAmount: DEBT
       })
     );
   }

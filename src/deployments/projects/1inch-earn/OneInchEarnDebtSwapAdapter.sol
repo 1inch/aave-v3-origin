@@ -43,6 +43,7 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
   error CallerNotPool();
   error InitiatorNotAdapter();
   error UnexpectedFlashAssets();
+  error DebtBelowSwapAmount();
 
   uint256 internal constant VARIABLE_RATE_MODE = 2;
 
@@ -56,7 +57,6 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
     uint256 makerDebtAmount; // amount of X
     address takerDebtAsset; // Y: the taker sheds this, the maker assumes it
     uint256 takerDebtAmount; // amount of Y
-    address premiumPayer; // funds the flashloan premium (must approve this adapter for X and Y)
   }
 
   constructor(IPool pool) {
@@ -65,7 +65,9 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
   }
 
   /// @notice Executes the P2P debt swap. Anyone may call (e.g. an Aqua settlement contract);
-  /// the swap only succeeds if both parties delegated credit and both end solvent.
+  /// the swap only succeeds if both parties delegated credit and both end solvent. The flashloan
+  /// premium is pulled from the CALLER (`msg.sender`), who must have approved this adapter for
+  /// both assets — never from an arbitrary address, so a standing allowance can't be drained.
   function swapDebt(DebtSwapParams calldata p) external {
     address[] memory assets = new address[](2);
     assets[0] = p.makerDebtAsset;
@@ -77,7 +79,16 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
 
     uint256[] memory modes = new uint256[](2); // both 0 => flashloan repaid in full
 
-    POOL.flashLoan(address(this), assets, amounts, modes, address(this), abi.encode(p), 0);
+    // Thread the caller through as the premium payer; the callback's msg.sender is the pool.
+    POOL.flashLoan(
+      address(this),
+      assets,
+      amounts,
+      modes,
+      address(this),
+      abi.encode(p, msg.sender),
+      0
+    );
   }
 
   /// @inheritdoc IFlashLoanReceiver
@@ -91,7 +102,7 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
     require(msg.sender == address(POOL), CallerNotPool());
     require(initiator == address(this), InitiatorNotAdapter());
 
-    DebtSwapParams memory p = abi.decode(params, (DebtSwapParams));
+    (DebtSwapParams memory p, address premiumPayer) = abi.decode(params, (DebtSwapParams, address));
     require(
       assets[0] == p.makerDebtAsset && assets[1] == p.takerDebtAsset,
       UnexpectedFlashAssets()
@@ -99,23 +110,31 @@ contract OneInchEarnDebtSwapAdapter is IFlashLoanReceiver {
 
     // 1. Shed both parties' current debts using the flashed liquidity. Doing both repays before
     // any new borrow guarantees neither account ever holds both debts at once.
+    // Require each party to actually owe at least the swap amount: otherwise `repay` would burn
+    // less than the flashed amount, the counterparty would over-borrow, and funds would be stuck.
     IERC20(p.makerDebtAsset).forceApprove(address(POOL), amounts[0]);
-    POOL.repay(p.makerDebtAsset, amounts[0], VARIABLE_RATE_MODE, p.maker);
+    require(
+      POOL.repay(p.makerDebtAsset, amounts[0], VARIABLE_RATE_MODE, p.maker) == amounts[0],
+      DebtBelowSwapAmount()
+    );
 
     IERC20(p.takerDebtAsset).forceApprove(address(POOL), amounts[1]);
-    POOL.repay(p.takerDebtAsset, amounts[1], VARIABLE_RATE_MODE, p.taker);
+    require(
+      POOL.repay(p.takerDebtAsset, amounts[1], VARIABLE_RATE_MODE, p.taker) == amounts[1],
+      DebtBelowSwapAmount()
+    );
 
     // 2. Open the swapped debts on behalf of each party (requires their credit delegation).
     // Each borrow health-checks the borrower against their own collateral.
     POOL.borrow(p.takerDebtAsset, amounts[1], VARIABLE_RATE_MODE, 0, p.maker);
     POOL.borrow(p.makerDebtAsset, amounts[0], VARIABLE_RATE_MODE, 0, p.taker);
 
-    // 3. Cover the flashloan premiums from the payer and approve the pool to pull repayment.
+    // 3. Cover the flashloan premiums from the caller and approve the pool to pull repayment.
     if (premiums[0] > 0) {
-      IERC20(p.makerDebtAsset).safeTransferFrom(p.premiumPayer, address(this), premiums[0]);
+      IERC20(p.makerDebtAsset).safeTransferFrom(premiumPayer, address(this), premiums[0]);
     }
     if (premiums[1] > 0) {
-      IERC20(p.takerDebtAsset).safeTransferFrom(p.premiumPayer, address(this), premiums[1]);
+      IERC20(p.takerDebtAsset).safeTransferFrom(premiumPayer, address(this), premiums[1]);
     }
     IERC20(p.makerDebtAsset).forceApprove(address(POOL), amounts[0] + premiums[0]);
     IERC20(p.takerDebtAsset).forceApprove(address(POOL), amounts[1] + premiums[1]);
