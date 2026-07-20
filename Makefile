@@ -43,6 +43,12 @@ deploy-libs :
 	make deploy-libs-one chain=${chain}
 	make deploy-libs-two chain=${chain}
 
+# 1inch Earn (Aave v3.7 instance) — see docs/1inch-earn/deployment-runbook.md
+deploy-1inch-earn :;
+	forge script scripts/1inch-earn/Deploy1inchEarnMarket.sol:Deploy1inchEarnMarket --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast --verify
+
+test-1inch-earn :; forge test --match-path 'tests/1inch-earn/*' -vvv
+
 
 # Invariants
 echidna:
