@@ -189,6 +189,36 @@ or the config engine's `updateCollateralSide`, only on evidence.
 - Cap raises: staged, evidence-based (2% depth sustained, real volume, clean liquidations
   observed) — never by enthusiasm.
 
+## 6b. Transferable debt tokens (off by default)
+
+Every 1inch Earn reserve is listed with `OneInchVariableDebtToken` (a fork-layer subclass; the
+audited core is untouched). Debt transfers are DISABLED at launch and require BOTH:
+
+1. the NFT-gated pool (`OneInchPoolInstance`) installed via `setPoolImpl` — it carries the
+   `finalizeDebtTransfer` hook the debt token calls; and
+2. `OneInchVariableDebtToken.setTransferable(true)` for that specific reserve (POOL_ADMIN),
+   done per-reserve only AFTER the independent audit.
+
+Consent + safety model (ported from `1inch/money-market-protocol`):
+
+- Inverted approval: `approve`/`permit` stay disabled. The debt RECEIVER opts in by calling
+  `credit(spender, amount)` (or signing `creditWithSig`, e.g. inside an Aqua order). A debtor
+  can never push debt onto an unwilling address.
+- The receiver backs the assumed debt with THEIR OWN collateral; `finalizeDebtTransfer`
+  health-checks the receiver (the sender only improves). Optional per-reserve KYC gate on the
+  receiver via `setDebtReceiverGate` (reuses the `KycNFT`).
+
+Use cases and the Aqua limitation:
+
+- Single-direction handoff (someone assumes my debt) settles as one `transfer`/`transferFrom`
+  on Aqua with a `creditWithSig` in the order — safe, and covered by
+  `test_fork_singleDirectionDebtHandoff`.
+- A two-leg debt-for-debt SWAP (`1xdUSDT` <-> `1xdUSDC`) does NOT settle as two raw transfers:
+  whichever leg lands first leaves that receiver transiently holding both debts and fails the
+  per-leg receiver HF check (proven by `test_naiveTwoLegSwapReverts`). Route debt SWAPS through
+  a P2P debt-swap adapter (repay/reborrow ordering, no double-debt) instead.
+- To disable transfers again for a reserve: `setTransferable(false)` (POOL_ADMIN), one tx.
+
 ## 7. Rollback summary
 
 | After step   | To roll back                                                                            |
@@ -196,4 +226,5 @@ or the config engine's `updateCollateralSide`, only on evidence.
 | 4.2 deploy   | Discard; don't list. No user funds.                                                     |
 | 4.3 listing  | `setReservePause` / `setReserveFreeze` the affected reserve (POOL_ADMIN/guardian).      |
 | 4.5 gate     | `setLiquidatorGate(address(0))` to open liquidations, or rotate the token — no upgrade. |
+| debt xfer    | `setTransferable(false)` on the reserve's debt token — one tx, POOL_ADMIN.              |
 | 4.7 handover | Irreversible without the DAO acting; do not run until 4.6 passes.                       |

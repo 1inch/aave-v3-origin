@@ -74,7 +74,12 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
     vm.prank(borrower);
     usdcDebt.transfer(receiver, amount);
 
-    assertApproxEqAbs(usdcDebt.balanceOf(borrower), borrowerBefore - amount, 2, 'borrower debt down');
+    assertApproxEqAbs(
+      usdcDebt.balanceOf(borrower),
+      borrowerBefore - amount,
+      2,
+      'borrower debt down'
+    );
     assertApproxEqAbs(usdcDebt.balanceOf(receiver), amount, 2, 'receiver debt up');
 
     // Receiver is now a borrower and stays solvent; borrower still solvent.

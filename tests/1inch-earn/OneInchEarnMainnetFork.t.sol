@@ -276,7 +276,12 @@ contract OneInchEarnMainnetForkTest is Test {
     vm.prank(borrower);
     usdcDebt.transfer(receiver, amount);
 
-    assertApproxEqAbs(usdcDebt.balanceOf(receiver), amount, 2, 'receiver assumed debt vs own collateral');
+    assertApproxEqAbs(
+      usdcDebt.balanceOf(receiver),
+      amount,
+      2,
+      'receiver assumed debt vs own collateral'
+    );
     (, , , , , uint256 receiverHf) = pool.getUserAccountData(receiver);
     (, , , , , uint256 borrowerHf) = pool.getUserAccountData(borrower);
     assertGt(receiverHf, 1e18, 'receiver solvent');
