@@ -44,10 +44,19 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
   error SelfTransferNotAllowed();
   error InvalidAmount();
   error InsufficientDebt();
+  error CallerNotDebtOwner();
+  error ReceiverHealthFactorTooLow();
 
   event CreditApproval(address indexed receiver, address indexed spender, uint256 amount);
   event TransferableSet(bool transferable);
   event DebtReceiverGateSet(address indexed gate);
+  event ReceiverMinHealthFactorSet(uint256 minHealthFactor);
+  event DebtTransferred(
+    address indexed asset,
+    address indexed from,
+    address indexed to,
+    uint256 amount
+  );
 
   uint256 public constant ONE_INCH_DEBT_TOKEN_REVISION = 6;
 
@@ -61,6 +70,9 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
 
   bool internal _transferable;
   IERC20 internal _debtReceiverGate;
+  /// @dev Extra safety margin required of the receiver AFTER assuming debt. 0 = disabled
+  /// (the base `validateHFAndLtv` >= 1e18 check still applies). e.g. 1.1e18 for a 10% buffer.
+  uint256 internal _receiverMinHealthFactor;
 
   constructor(
     IPool pool,
@@ -85,12 +97,24 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
     emit DebtReceiverGateSet(address(gate));
   }
 
+  /// @notice Sets the minimum health factor the receiver must retain AFTER assuming debt.
+  /// @dev 0 disables the extra buffer (base >= 1e18 check still applies). Set e.g. 1.1e18
+  /// so a receiver can never be left immediately liquidatable by a debt handoff.
+  function setReceiverMinHealthFactor(uint256 minHealthFactor) external onlyPoolAdmin {
+    _receiverMinHealthFactor = minHealthFactor;
+    emit ReceiverMinHealthFactorSet(minHealthFactor);
+  }
+
   function transferable() external view returns (bool) {
     return _transferable;
   }
 
   function debtReceiverGate() external view returns (IERC20) {
     return _debtReceiverGate;
+  }
+
+  function receiverMinHealthFactor() external view returns (uint256) {
+    return _receiverMinHealthFactor;
   }
 
   // ---------------------------- consent (credit) -------------------------------
@@ -139,44 +163,64 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
   // -------------------------------- transfers ----------------------------------
 
   /// @notice Moves the caller's own debt to `to`; requires `to` to have credited the caller.
+  /// Pass `type(uint256).max` to move the caller's entire debt.
   function transfer(address to, uint256 amount) external override returns (bool) {
-    return _spendCreditAndTransfer(_msgSender(), _msgSender(), to, amount);
-  }
-
-  /// @notice Moves `from`'s debt to `to`; requires `to` to have credited the caller.
-  function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
-    return _spendCreditAndTransfer(_msgSender(), from, to, amount);
-  }
-
-  function _spendCreditAndTransfer(
-    address spender,
-    address from,
-    address to,
-    uint256 amount
-  ) internal returns (bool) {
-    uint256 currentCredit = _creditAllowances[to][spender];
-    if (currentCredit < amount) revert InsufficientCredit();
-    if (currentCredit != type(uint256).max) {
-      _creditAllowances[to][spender] = currentCredit - amount;
-    }
-    _executeDebtTransfer(from, to, amount);
+    _debtTransfer(_msgSender(), to, amount);
     return true;
   }
 
-  function _executeDebtTransfer(address from, address to, uint256 amount) internal {
+  /// @notice Moves `from`'s debt to `to`. `from` MUST be the caller — debt can only be moved by
+  /// its owner. Third-party/settlement-driven moves go through the P2P debt-swap adapter with an
+  /// explicit maker authorization, not this path.
+  function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
+    if (from != _msgSender()) revert CallerNotDebtOwner();
+    _debtTransfer(from, to, amount);
+    return true;
+  }
+
+  function _debtTransfer(address from, address to, uint256 amount) internal {
     if (!_transferable) revert TransfersDisabled();
-    if (amount == 0) revert InvalidAmount();
     if (from == to) revert SelfTransferNotAllowed();
 
     IERC20 gate = _debtReceiverGate;
     if (address(gate) != address(0) && gate.balanceOf(to) == 0) revert ReceiverNotAllowed();
 
     uint256 index = POOL.getReserveNormalizedVariableDebt(_underlyingAsset);
-    uint256 scaledAmount = amount.getVTokenMintScaledAmount(index);
 
-    _moveScaledDebt(from, to, amount, scaledAmount, index);
+    // Resolve the effective underlying amount + scaled amount, supporting the full-balance
+    // sentinel so a debtor can always fully exit (a nominal `balanceOf` amount could otherwise
+    // round the scaled amount above the held balance and revert).
+    uint256 fromScaled = _userState[from].balance;
+    uint256 scaledAmount;
+    uint256 transferAmount;
+    if (amount == type(uint256).max) {
+      scaledAmount = fromScaled;
+      transferAmount = scaledAmount.getVTokenBalance(index);
+    } else {
+      transferAmount = amount;
+      scaledAmount = amount.getVTokenMintScaledAmount(index);
+    }
+    if (transferAmount == 0 || scaledAmount == 0) revert InvalidAmount();
+
+    // Consume the receiver's credit granted to the debtor (`from`), by the underlying amount.
+    uint256 currentCredit = _creditAllowances[to][from];
+    if (currentCredit < transferAmount) revert InsufficientCredit();
+    if (currentCredit != type(uint256).max) {
+      _creditAllowances[to][from] = currentCredit - transferAmount;
+    }
+
+    _moveScaledDebt(from, to, transferAmount, scaledAmount, index);
 
     IOneInchEarnPool(address(POOL)).finalizeDebtTransfer(_underlyingAsset, from, to);
+
+    // Optional extra receiver margin on top of the pool's >= 1e18 health-factor check.
+    uint256 minHf = _receiverMinHealthFactor;
+    if (minHf != 0) {
+      (, , , , , uint256 healthFactor) = POOL.getUserAccountData(to);
+      if (healthFactor < minHf) revert ReceiverHealthFactorTooLow();
+    }
+
+    emit DebtTransferred(_underlyingAsset, from, to, transferAmount);
   }
 
   /// @dev Moves scaled debt between accounts, mirroring `AToken._transfer` interest accounting:
