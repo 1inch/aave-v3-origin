@@ -174,7 +174,7 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
     uint256 index = POOL.getReserveNormalizedVariableDebt(_underlyingAsset);
     uint256 scaledAmount = amount.getVTokenMintScaledAmount(index);
 
-    _moveScaledDebt(from, to, scaledAmount, index);
+    _moveScaledDebt(from, to, amount, scaledAmount, index);
 
     IOneInchEarnPool(address(POOL)).finalizeDebtTransfer(_underlyingAsset, from, to);
   }
@@ -182,7 +182,15 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
   /// @dev Moves scaled debt between accounts, mirroring `AToken._transfer` interest accounting:
   /// each user's stored index (`_userState[...].additionalData`) is refreshed and accrued
   /// interest is emitted before the move, so later mint/burn attribute interest correctly.
-  function _moveScaledDebt(address from, address to, uint256 scaledAmount, uint256 index) internal {
+  /// Finally emits the ERC20 `Transfer(from, to, amount)` for the moved debt so balance
+  /// indexers/subgraphs stay correct (neither `super._transfer` nor the accrual events cover it).
+  function _moveScaledDebt(
+    address from,
+    address to,
+    uint256 amount,
+    uint256 scaledAmount,
+    uint256 index
+  ) internal {
     uint256 fromScaled = _userState[from].balance;
     if (fromScaled < scaledAmount) revert InsufficientDebt();
     uint256 toScaled = _userState[to].balance;
@@ -205,5 +213,7 @@ contract OneInchVariableDebtToken is VariableDebtTokenInstance {
       emit Transfer(address(0), to, toIncrease);
       emit Mint(_msgSender(), to, toIncrease, toIncrease, index);
     }
+
+    emit Transfer(from, to, amount);
   }
 }

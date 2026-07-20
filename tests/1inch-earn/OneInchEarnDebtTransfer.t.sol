@@ -87,6 +87,20 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
     assertGt(receiverHf, 1e18, 'receiver healthy');
   }
 
+  function test_emitsTransferEvent() public {
+    // The debt move must emit ERC20 Transfer(from, to, amount) so balance indexers stay correct.
+    _supply(receiver, tokens.wbtc, 2e8);
+    uint256 amount = 30_000e6;
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, amount);
+
+    vm.expectEmit(true, true, false, true, address(usdcDebt));
+    emit IERC20.Transfer(borrower, receiver, amount);
+
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, amount);
+  }
+
   function test_revert_withoutCredit() public {
     _supply(receiver, tokens.wbtc, 2e8);
     vm.prank(borrower);
