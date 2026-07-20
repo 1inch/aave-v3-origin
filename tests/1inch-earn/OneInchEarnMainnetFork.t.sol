@@ -18,6 +18,7 @@ import {OneInchEarnConfig} from '../../src/deployments/projects/1inch-earn/OneIn
 import {OneInchEarnListingPayload} from '../../src/deployments/projects/1inch-earn/OneInchEarnListingPayload.sol';
 import {OneInchEarnHandover} from '../../src/deployments/projects/1inch-earn/OneInchEarnHandover.sol';
 import {OneInchPoolInstance} from '../../src/deployments/projects/1inch-earn/OneInchPoolInstance.sol';
+import {OneInchVariableDebtToken} from '../../src/deployments/projects/1inch-earn/OneInchVariableDebtToken.sol';
 import {KycNFT} from '../../src/deployments/projects/1inch-earn/KycNFT.sol';
 
 interface IAggregatorLike {
@@ -225,6 +226,61 @@ contract OneInchEarnMainnetForkTest is Test {
     // receiveAToken=false -> liquidator is paid in underlying WETH collateral.
     assertGt(IERC20(tokens.weth).balanceOf(liquidator), wethBefore, 'seized WETH collateral');
     assertEq(kyc.balanceOf(liquidator), 1, 'liquidator keeps KYC NFT');
+  }
+
+  function test_fork_singleDirectionDebtHandoff() public {
+    if (_skip()) return;
+
+    // Install the gated pool (carries finalizeDebtTransfer) and enable USDC debt transfers.
+    OneInchPoolInstance impl = new OneInchPoolInstance(
+      IPoolAddressesProvider(report.poolAddressesProvider),
+      IReserveInterestRateStrategy(report.defaultInterestRateStrategy),
+      IERC20(address(0))
+    );
+    vm.prank(deployer);
+    IPoolAddressesProvider(report.poolAddressesProvider).setPoolImpl(address(impl));
+
+    OneInchVariableDebtToken usdcDebt = OneInchVariableDebtToken(
+      pool.getReserveVariableDebtToken(tokens.usdc)
+    );
+    vm.prank(deployer);
+    usdcDebt.setTransferable(true);
+
+    // USDC liquidity.
+    address whale = makeAddr('handoffWhale');
+    deal(tokens.usdc, whale, 500_000e6, true);
+    vm.startPrank(whale);
+    IERC20(tokens.usdc).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.usdc, 500_000e6, whale, 0);
+    vm.stopPrank();
+
+    // Borrower: 10 WETH collateral, borrows 5k USDC.
+    address borrower = makeAddr('handoffBorrower');
+    deal(tokens.weth, borrower, 10 ether);
+    vm.startPrank(borrower);
+    IERC20(tokens.weth).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.weth, 10 ether, borrower, 0);
+    pool.borrow(tokens.usdc, 5_000e6, 2, 0, borrower);
+    vm.stopPrank();
+
+    // Receiver: 10 WETH collateral, opts in by crediting the borrower.
+    address receiver = makeAddr('handoffReceiver');
+    deal(tokens.weth, receiver, 10 ether);
+    vm.startPrank(receiver);
+    IERC20(tokens.weth).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.weth, 10 ether, receiver, 0);
+    usdcDebt.credit(borrower, 5_000e6);
+    vm.stopPrank();
+
+    uint256 amount = 4_000e6;
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, amount);
+
+    assertApproxEqAbs(usdcDebt.balanceOf(receiver), amount, 2, 'receiver assumed debt vs own collateral');
+    (, , , , , uint256 receiverHf) = pool.getUserAccountData(receiver);
+    (, , , , , uint256 borrowerHf) = pool.getUserAccountData(borrower);
+    assertGt(receiverHf, 1e18, 'receiver solvent');
+    assertGt(borrowerHf, 1e18, 'borrower solvent');
   }
 
   function test_fork_handoverRevokesDeployer() public {
