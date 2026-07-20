@@ -47,6 +47,16 @@ deploy-libs :
 deploy-1inch-earn :;
 	forge script scripts/1inch-earn/Deploy1inchEarnMarket.sol:Deploy1inchEarnMarket --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast --verify
 
+list-1inch-earn :;
+	forge script scripts/1inch-earn/List1inchEarnAssets.sol:List1inchEarnAssets --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
+
+install-1inch-earn-gate :;
+	forge script scripts/1inch-earn/Install1inchEarnLiquidatorGate.sol:Install1inchEarnLiquidatorGate --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast --verify
+
+handover-1inch-earn :;
+	forge script scripts/1inch-earn/Handover1inchEarn.sol:Handover1inchEarn --rpc-url ${chain} --ledger --mnemonic-indexes ${MNEMONIC_INDEX} --sender ${LEDGER_SENDER} --slow --broadcast
+
+# Local (mock) + optional mainnet-fork dress rehearsal (set RPC_MAINNET for the fork tests)
 test-1inch-earn :; forge test --match-path 'tests/1inch-earn/*' -vvv
 
 
