@@ -263,6 +263,22 @@ contract OneInchEarnMainnetForkTest is Test {
     assertEq(IOwnableLike(report.emissionManager).owner(), dao, 'emission manager owned by dao');
     assertEq(IOwnableLike(report.wrappedTokenGateway).owner(), dao, 'gateway owned by dao');
     assertEq(IPoolAddressesProvider(report.poolAddressesProvider).getACLAdmin(), dao, 'acl admin');
+
+    // Transparent-proxy admins (upgrade rights) moved to the DAO.
+    assertEq(_proxyAdminOwner(report.treasury), dao, 'treasury proxy admin -> dao');
+    assertEq(_proxyAdminOwner(report.dustBin), dao, 'dustBin proxy admin -> dao');
+    assertEq(
+      _proxyAdminOwner(report.staticATokenFactoryProxy),
+      dao,
+      'static factory proxy admin -> dao'
+    );
+  }
+
+  /// @dev Reads the ERC-1967 admin slot and returns its owner (the ProxyAdmin's owner).
+  function _proxyAdminOwner(address proxy) internal view returns (address) {
+    bytes32 adminSlot = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    address proxyAdmin = address(uint160(uint256(vm.load(proxy, adminSlot))));
+    return IOwnableLike(proxyAdmin).owner();
   }
 
   // --------------------------------- helpers -----------------------------------

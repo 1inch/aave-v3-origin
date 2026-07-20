@@ -181,17 +181,19 @@ or the config engine's `updateCollateralSide`, only on evidence.
   RiskSteward wrapper (caps-only, rate-limited) as a hardening follow-up.
 - Emergency: guardian can `setReservePause` / `setPoolPause` (EMERGENCY_ADMIN).
 - Bad debt: wire `provider.setAddress('UMBRELLA', ...)` + treasury cover policy (v3.3 deficit).
-- Liquidator gate emergency: to OPEN liquidations, re-install a gate-disabled pool
-  (`KYC_NFT=0x0`) or vanilla `PoolInstance`; to lock out a compromised liquidator, the KYC owner
-  burns their token (emergency revoke-all is an owner script).
+- Liquidator gate emergency: once the gated pool is installed, the gate token is mutable via
+  `OneInchPoolInstance.setLiquidatorGate` (POOL_ADMIN or EMERGENCY_ADMIN). To OPEN liquidations
+  instantly, the guardian calls `setLiquidatorGate(address(0))` — one tx, no pool upgrade. To
+  rotate the KYC contract, set a new gate address. To lock out a single compromised liquidator,
+  the KYC owner burns their token (emergency revoke-all is an owner script).
 - Cap raises: staged, evidence-based (2% depth sustained, real volume, clean liquidations
   observed) — never by enthusiasm.
 
 ## 7. Rollback summary
 
-| After step   | To roll back                                                                          |
-| ------------ | ------------------------------------------------------------------------------------- |
-| 4.2 deploy   | Discard; don't list. No user funds.                                                   |
-| 4.3 listing  | `setReservePause` / `setReserveFreeze` the affected reserve (POOL_ADMIN/guardian).    |
-| 4.5 gate     | `setPoolImpl` back to vanilla `PoolInstance` (or gate-disabled), reversible any time. |
-| 4.7 handover | Irreversible without the DAO acting; do not run until 4.6 passes.                     |
+| After step   | To roll back                                                                            |
+| ------------ | --------------------------------------------------------------------------------------- |
+| 4.2 deploy   | Discard; don't list. No user funds.                                                     |
+| 4.3 listing  | `setReservePause` / `setReserveFreeze` the affected reserve (POOL_ADMIN/guardian).      |
+| 4.5 gate     | `setLiquidatorGate(address(0))` to open liquidations, or rotate the token — no upgrade. |
+| 4.7 handover | Irreversible without the DAO acting; do not run until 4.6 passes.                       |

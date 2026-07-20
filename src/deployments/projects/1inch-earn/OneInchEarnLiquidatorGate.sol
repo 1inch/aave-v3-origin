@@ -13,16 +13,16 @@ import {OneInchEarnConfig} from './OneInchEarnConfig.sol';
  * @author 1inch
  * @notice Helper library to (a) deploy the liquidator KYC NFT and (b) install the
  * NFT-gated Pool implementation as a governance upgrade.
- * @dev Installing the gate is intentionally a `PoolAddressesProvider.setPoolImpl` upgrade
- * rather than a fork of the audited batch orchestration:
- * - keeps every audited v3.7 deployment file byte-identical;
- * - is exactly the same, reversible governance action used to later change or remove the
- *   gate (install an `OneInchPoolInstance` with a different gate, or re-install vanilla
- *   `PoolInstance`, to open liquidations back up in an emergency).
+ * @dev Installing the gated pool is a one-time `PoolAddressesProvider.setPoolImpl` upgrade
+ * (11 -> 12) that keeps every audited v3.7 deployment file byte-identical. AFTER install,
+ * the gate token is mutable via `OneInchPoolInstance.setLiquidatorGate` (POOL_ADMIN or
+ * EMERGENCY_ADMIN) — rotating the KYC contract or opening liquidations in an emergency
+ * (`gate = address(0)`) is a single transaction, NOT another pool upgrade.
  *
  * The caller must own the `PoolAddressesProvider` (the deployer during bootstrap, the
  * 1inch DAO executor after handover). `setPoolImpl` re-runs the proxy initializer, which
- * only re-validates the addresses provider, so live reserves and balances are unaffected.
+ * re-validates the addresses provider and seeds the gate from the constructor immutable,
+ * so live reserves and balances are unaffected.
  */
 library OneInchEarnLiquidatorGate {
   /// @notice Deploys the liquidator KYC NFT owned by `owner` (Business Portal minting wallet / ops multisig).

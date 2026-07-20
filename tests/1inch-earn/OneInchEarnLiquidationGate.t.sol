@@ -116,6 +116,61 @@ contract OneInchEarnLiquidationGateTest is OneInchEarnTestBase {
     );
   }
 
+  function test_gateSeededOnInstall() public {
+    _freshMarket(true);
+    assertEq(
+      address(OneInchPoolInstance(report.poolProxy).liquidatorGate()),
+      address(kyc),
+      'gate seeded from immutable on install'
+    );
+  }
+
+  function test_emergencyOpenViaSetter() public {
+    // The emergency path: open liquidations instantly WITHOUT a pool upgrade.
+    _freshMarket(true);
+    _fundLiquidator();
+
+    // Non-holder is blocked while the gate is active.
+    vm.prank(liquidator);
+    vm.expectRevert(OneInchPoolInstance.OnlyKycLiquidators.selector);
+    pool.liquidationCall(tokens.wbtc, tokens.usdc, borrower, type(uint256).max, false);
+
+    // Guardian (EMERGENCY_ADMIN) opens the gate in one tx.
+    vm.prank(deployer); // deployer is emergencyAdmin during bootstrap
+    OneInchPoolInstance(report.poolProxy).setLiquidatorGate(IERC20(address(0)));
+
+    // Now anyone can liquidate.
+    vm.prank(liquidator);
+    pool.liquidationCall(tokens.wbtc, tokens.usdc, borrower, type(uint256).max, false);
+    assertGt(IERC20(tokens.wbtc).balanceOf(liquidator), 0, 'permissionless after open');
+  }
+
+  function test_gateRotation() public {
+    _freshMarket(true);
+
+    // Rotate to a fresh KYC contract; old holders lose access, new holders gain it.
+    KycNFT kyc2 = new KycNFT('KYC2', 'KYC2', '1', kycOwner);
+    vm.prank(deployer); // POOL_ADMIN during bootstrap
+    OneInchPoolInstance(report.poolProxy).setLiquidatorGate(IERC20(address(kyc2)));
+
+    assertEq(address(OneInchPoolInstance(report.poolProxy).liquidatorGate()), address(kyc2));
+
+    vm.prank(kycOwner);
+    kyc.mint(liquidator, 9); // old gate token
+    assertFalse(
+      OneInchPoolInstance(report.poolProxy).isAuthorizedLiquidator(liquidator),
+      'old gate token no longer authorizes'
+    );
+  }
+
+  function test_setLiquidatorGateOnlyAdmin() public {
+    _freshMarket(true);
+    address stranger = makeAddr('stranger');
+    vm.prank(stranger);
+    vm.expectRevert(OneInchPoolInstance.CallerNotPoolOrEmergencyAdmin.selector);
+    OneInchPoolInstance(report.poolProxy).setLiquidatorGate(IERC20(address(0)));
+  }
+
   // --------------------------------- helpers -----------------------------------
 
   /// @dev Deploys a fresh market, lists the launch book, installs the gated pool once
