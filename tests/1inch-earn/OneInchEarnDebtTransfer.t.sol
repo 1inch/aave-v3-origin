@@ -5,6 +5,7 @@ import {OneInchEarnTestBase} from './OneInchEarnTestBase.sol';
 import {IPool} from '../../src/contracts/interfaces/IPool.sol';
 import {IPoolAddressesProvider} from '../../src/contracts/interfaces/IPoolAddressesProvider.sol';
 import {IReserveInterestRateStrategy} from '../../src/contracts/interfaces/IReserveInterestRateStrategy.sol';
+import {IPoolConfigurator} from '../../src/contracts/interfaces/IPoolConfigurator.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {TestnetERC20} from '../../src/contracts/mocks/testnet-helpers/TestnetERC20.sol';
 import {KycNFT} from '../../src/deployments/projects/1inch-earn/KycNFT.sol';
@@ -228,6 +229,140 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
     usdcDebt.transfer(partyB, 40_000e6);
   }
 
+  function test_interestAccrualAndScaledSupplyConservation() public {
+    _supply(receiver, tokens.wbtc, 2e8);
+
+    // Let interest accrue on the borrower's existing debt.
+    vm.warp(block.timestamp + 30 days);
+
+    uint256 scaledSupplyBefore = usdcDebt.scaledTotalSupply();
+    uint256 totalUnderlyingBefore = usdcDebt.balanceOf(borrower) + usdcDebt.balanceOf(receiver);
+
+    uint256 amount = 20_000e6;
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, amount);
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, amount);
+
+    // A transfer moves scaled debt between users; it never changes total scaled supply.
+    assertEq(usdcDebt.scaledTotalSupply(), scaledSupplyBefore, 'scaled supply conserved');
+    // Underlying debt is conserved across the move (within ceil-rounding dust).
+    assertApproxEqAbs(
+      usdcDebt.balanceOf(borrower) + usdcDebt.balanceOf(receiver),
+      totalUnderlyingBefore,
+      3,
+      'underlying debt conserved'
+    );
+
+    // Both positions keep accruing interest afterwards.
+    uint256 borrowerAfter = usdcDebt.balanceOf(borrower);
+    uint256 receiverAfter = usdcDebt.balanceOf(receiver);
+    vm.warp(block.timestamp + 30 days);
+    assertGt(usdcDebt.balanceOf(borrower), borrowerAfter, 'borrower keeps accruing');
+    assertGt(usdcDebt.balanceOf(receiver), receiverAfter, 'receiver accrues on assumed debt');
+  }
+
+  function test_fullBalanceExitWithMaxSentinel() public {
+    _supply(receiver, tokens.wbtc, 3e8);
+    vm.warp(block.timestamp + 10 days); // ensure a non-unit index so rounding matters
+
+    uint256 fullDebt = usdcDebt.balanceOf(borrower);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, type(uint256).max);
+
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, type(uint256).max);
+
+    assertEq(usdcDebt.balanceOf(borrower), 0, 'borrower fully exited');
+    assertApproxEqAbs(usdcDebt.balanceOf(receiver), fullDebt, 3, 'receiver holds the whole debt');
+  }
+
+  function test_infiniteCreditNotDecremented() public {
+    _supply(receiver, tokens.wbtc, 3e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, type(uint256).max);
+
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, 10_000e6);
+    assertEq(usdcDebt.creditAllowance(receiver, borrower), type(uint256).max, 'infinite credit persists');
+  }
+
+  function test_transferFromByOwner() public {
+    _supply(receiver, tokens.wbtc, 2e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, 15_000e6);
+    vm.prank(borrower);
+    usdcDebt.transferFrom(borrower, receiver, 15_000e6);
+    assertApproxEqAbs(usdcDebt.balanceOf(receiver), 15_000e6, 2, 'owner transferFrom works');
+  }
+
+  function test_revert_transferFromByNonOwner() public {
+    _supply(receiver, tokens.wbtc, 2e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, 15_000e6);
+    address stranger = makeAddr('stranger');
+    vm.prank(stranger);
+    vm.expectRevert(OneInchVariableDebtToken.CallerNotDebtOwner.selector);
+    usdcDebt.transferFrom(borrower, receiver, 15_000e6);
+  }
+
+  function test_receiverMinHealthFactorBuffer() public {
+    _supply(receiver, tokens.wbtc, 2e8); // $200k
+    uint256 amount = 40_000e6;
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, amount);
+
+    // Require a very high buffer the receiver cannot meet -> revert.
+    vm.prank(deployer);
+    usdcDebt.setReceiverMinHealthFactor(50e18);
+    vm.prank(borrower);
+    vm.expectRevert(OneInchVariableDebtToken.ReceiverHealthFactorTooLow.selector);
+    usdcDebt.transfer(receiver, amount);
+
+    // Lower the buffer below the receiver's post-transfer HF -> succeeds.
+    vm.prank(deployer);
+    usdcDebt.setReceiverMinHealthFactor(2e18);
+    vm.prank(borrower);
+    usdcDebt.transfer(receiver, amount);
+    assertApproxEqAbs(usdcDebt.balanceOf(receiver), amount, 2, 'transfer within buffer');
+  }
+
+  function test_revert_pausedReserve() public {
+    _supply(receiver, tokens.wbtc, 2e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, 10_000e6);
+    vm.prank(deployer);
+    IPoolConfigurator(report.poolConfiguratorProxy).setReservePause(tokens.usdc, true);
+    vm.prank(borrower);
+    vm.expectRevert(OneInchDebtTransferValidation.ReservePaused.selector);
+    usdcDebt.transfer(receiver, 10_000e6);
+  }
+
+  function test_revert_frozenReserve() public {
+    _supply(receiver, tokens.wbtc, 2e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, 10_000e6);
+    vm.prank(deployer);
+    IPoolConfigurator(report.poolConfiguratorProxy).setReserveFreeze(tokens.usdc, true);
+    vm.prank(borrower);
+    vm.expectRevert(OneInchDebtTransferValidation.ReserveFrozen.selector);
+    usdcDebt.transfer(receiver, 10_000e6);
+  }
+
+  function test_revert_borrowingDisabledReserve() public {
+    // Governance disables borrowing on USDC while the borrower already holds debt: the debt
+    // becomes non-transferable to a receiver (borrow-side check), same rule that keeps the
+    // red-row 1INCH/AQUA debt (which can never exist) unassumable.
+    _supply(receiver, tokens.wbtc, 2e8);
+    vm.prank(receiver);
+    usdcDebt.credit(borrower, 10_000e6);
+    vm.prank(deployer);
+    IPoolConfigurator(report.poolConfiguratorProxy).setReserveBorrowing(tokens.usdc, false);
+    vm.prank(borrower);
+    vm.expectRevert(OneInchDebtTransferValidation.BorrowingNotEnabled.selector);
+    usdcDebt.transfer(receiver, 10_000e6);
+  }
+
   // --------------------------------- helpers -----------------------------------
 
   function listingPayloadEModeId() internal view returns (uint8) {
@@ -258,6 +393,63 @@ contract OneInchEarnDebtTransferTest is OneInchEarnTestBase {
     IERC20(tokens.weth).approve(address(pool), type(uint256).max);
     pool.supply(tokens.weth, amount, user, 0);
     vm.stopPrank();
+  }
+
+  function _mint(address token, address to, uint256 amount) internal {
+    vm.prank(deployer);
+    TestnetERC20(token).mint(to, amount);
+  }
+}
+
+/**
+ * @title OneInchEarnDebtTransferVanillaPoolTest
+ * @notice Fail-closed guarantee: if `transferable` is enabled on a reserve while the market is
+ * still running the vanilla `PoolInstance` (which lacks `finalizeDebtTransfer`), any debt
+ * transfer reverts. Enabling transfers therefore requires the `OneInchPoolInstance` upgrade.
+ */
+contract OneInchEarnDebtTransferVanillaPoolTest is OneInchEarnTestBase {
+  IPool internal pool;
+  OneInchVariableDebtToken internal usdcDebt;
+  address internal borrower;
+  address internal receiver;
+
+  function setUp() public {
+    _deployMarketAndList(); // NOTE: deliberately does NOT install OneInchPoolInstance
+    pool = IPool(report.poolProxy);
+    borrower = makeAddr('borrower');
+    receiver = makeAddr('receiver');
+    usdcDebt = OneInchVariableDebtToken(pool.getReserveVariableDebtToken(tokens.usdc));
+
+    address whale = makeAddr('whale');
+    _mint(tokens.usdc, whale, 1_000_000e6);
+    vm.startPrank(whale);
+    IERC20(tokens.usdc).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.usdc, 1_000_000e6, whale, 0);
+    vm.stopPrank();
+
+    _mint(tokens.wbtc, borrower, 1e8);
+    vm.startPrank(borrower);
+    IERC20(tokens.wbtc).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.wbtc, 1e8, borrower, 0);
+    pool.borrow(tokens.usdc, 50_000e6, 2, 0, borrower);
+    vm.stopPrank();
+
+    vm.prank(deployer);
+    usdcDebt.setTransferable(true);
+  }
+
+  function test_revert_transferOnVanillaPool() public {
+    _mint(tokens.wbtc, receiver, 2e8);
+    vm.startPrank(receiver);
+    IERC20(tokens.wbtc).approve(address(pool), type(uint256).max);
+    pool.supply(tokens.wbtc, 2e8, receiver, 0);
+    usdcDebt.credit(borrower, 10_000e6);
+    vm.stopPrank();
+
+    // The pool has no `finalizeDebtTransfer` selector -> the token's callback reverts.
+    vm.prank(borrower);
+    vm.expectRevert();
+    usdcDebt.transfer(receiver, 10_000e6);
   }
 
   function _mint(address token, address to, uint256 amount) internal {
