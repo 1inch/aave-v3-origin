@@ -67,7 +67,7 @@ contract OneInchEarnLiquidationSecurityTest is OneInchEarnTestBase {
 
   // ------------------- gate blocks unauthorized bonus-sniping -------------------
 
-  function test_finding_none_nonKycCannotSnipeLiquidationBonus() public {
+  function test_nonKycCannotSnipeLiquidationBonus() public {
     _crashWbtc(80_000e8); // HF < 1
     _fund(attacker, tokens.usdc, 70_000e6);
     vm.prank(attacker);
@@ -98,13 +98,18 @@ contract OneInchEarnLiquidationSecurityTest is OneInchEarnTestBase {
     uint256 amount = 100_000e6;
     uint256 premium = (amount * 5) / 10_000; // 0.05% total premium
     _mint(tokens.usdc, address(receiver), premium); // pre-fund the premium
+    address aUsdc = pool.getReserveAToken(tokens.usdc);
+    uint256 liquidityBefore = IERC20(tokens.usdc).balanceOf(aUsdc);
+
     vm.prank(attacker); // a non-KYC EOA initiates
     pool.flashLoanSimple(address(receiver), tokens.usdc, amount, '', 0);
-    // Reaching here (no OnlyKycLiquidators revert) proves flashloans are ungated.
-    assertGt(
-      IERC20(tokens.usdc).balanceOf(pool.getReserveAToken(tokens.usdc)),
-      0,
-      'flashloan settled'
+
+    // Proves the flashloan actually SETTLED (not merely "did not revert"): the premium accrued
+    // to the reserve. A non-KYC caller flash-borrowed — the gate does not touch this path.
+    assertEq(
+      IERC20(tokens.usdc).balanceOf(aUsdc) - liquidityBefore,
+      premium,
+      'flashloan settled and premium accrued for a non-KYC caller'
     );
   }
 

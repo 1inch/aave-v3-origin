@@ -6,6 +6,7 @@ import {IPool} from '../../../src/contracts/interfaces/IPool.sol';
 import {IERC20} from 'openzeppelin-contracts/contracts/token/ERC20/IERC20.sol';
 import {ICreditDelegationToken} from '../../../src/contracts/interfaces/ICreditDelegationToken.sol';
 import {TestnetERC20} from '../../../src/contracts/mocks/testnet-helpers/TestnetERC20.sol';
+import {Errors} from '../../../src/contracts/protocol/libraries/helpers/Errors.sol';
 import {OneInchEarnDebtSwapAdapter} from '../../../src/deployments/projects/1inch-earn/OneInchEarnDebtSwapAdapter.sol';
 
 /**
@@ -80,8 +81,10 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
     IERC20(tokens.usdt).approve(address(adapter), type(uint256).max);
     vm.stopPrank();
 
-    (, uint256 attackerDebtBefore, , , , ) = pool.getUserAccountData(attacker);
-    (, uint256 victimDebtBefore, , , , ) = pool.getUserAccountData(victim);
+    (uint256 attackerColBefore, uint256 attackerDebtBefore, , , , ) = pool.getUserAccountData(
+      attacker
+    );
+    (uint256 victimColBefore, uint256 victimDebtBefore, , , , ) = pool.getUserAccountData(victim);
 
     // Attacker (a party = taker) triggers the swap against the victim's standing delegation.
     vm.prank(attacker);
@@ -96,24 +99,39 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
       })
     );
 
-    (, uint256 attackerDebtAfter, , , , ) = pool.getUserAccountData(attacker);
-    (, uint256 victimDebtAfter, , , , ) = pool.getUserAccountData(victim);
+    (uint256 attackerColAfter, uint256 attackerDebtAfter, , , , ) = pool.getUserAccountData(
+      attacker
+    );
+    (uint256 victimColAfter, uint256 victimDebtAfter, , , , ) = pool.getUserAccountData(victim);
 
     // Attacker's debt collapsed (~$200k -> ~$10k); victim's ballooned (~$10k -> ~$200k).
     assertApproxEqRel(attackerDebtBefore, 200_000e8, 0.01e18, 'attacker started ~200k debt');
     assertApproxEqRel(attackerDebtAfter, 10_000e8, 0.02e18, 'attacker ends ~10k debt');
     assertApproxEqRel(victimDebtAfter, 200_000e8, 0.01e18, 'victim saddled with ~200k debt');
-    assertGt(victimDebtAfter, victimDebtBefore + 150_000e8, 'victim debt increased ~190k');
-    assertLt(attackerDebtAfter, attackerDebtBefore - 150_000e8, 'attacker debt cut ~190k');
 
-    // Concrete profit: the attacker can now withdraw collateral that its 200k debt had locked.
-    // Prove >$180k of previously-locked WBTC is now freely withdrawable.
-    uint256 freed = 180_000e8;
-    (, , uint256 availableBorrowsBase, , , ) = pool.getUserAccountData(attacker);
-    assertGt(
-      availableBorrowsBase,
-      freed,
-      'attacker unlocked large borrowing power at victim expense'
+    // AIRTIGHT PROFIT PROOF: net equity (collateral - debt) is the value each account owns. No
+    // collateral moved, so the swap transfers ~$190k of equity from victim to attacker. This is
+    // harness-independent (no minting can fabricate it) and nets out to ~0 minus the premium.
+    int256 attackerEquityGain = _equityDelta(
+      attackerColBefore,
+      attackerDebtBefore,
+      attackerColAfter,
+      attackerDebtAfter
+    );
+    int256 victimEquityGain = _equityDelta(
+      victimColBefore,
+      victimDebtBefore,
+      victimColAfter,
+      victimDebtAfter
+    );
+    assertGt(attackerEquityGain, int256(180_000e8), 'attacker gained >$180k of equity');
+    assertLt(victimEquityGain, -int256(180_000e8), 'victim lost >$180k of equity');
+    // Conservation: what the attacker gained is what the victim lost (both parties, ~zero-sum).
+    assertApproxEqAbs(
+      attackerEquityGain + victimEquityGain,
+      int256(0),
+      1_000e8,
+      'value is transferred victim -> attacker (zero-sum minus premium)'
     );
   }
 
@@ -159,9 +177,12 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
       'maker delegation consumed to zero'
     );
 
-    // A follow-up forced swap now has no delegation to abuse -> reverts.
+    // A follow-up forced swap cannot replay: the delegations are zero (asserted above) AND the
+    // parties' debts have already moved, so the first repay leg (maker no longer owes USDT)
+    // reverts with NoDebtOfSelectedType before any delegation could even be abused. Either guard
+    // alone defeats the replay; this asserts the first one hit.
     vm.prank(whale);
-    vm.expectRevert(); // InsufficientBorrowAllowance
+    vm.expectRevert(Errors.NoDebtOfSelectedType.selector);
     adapter.swapDebt(p);
   }
 
@@ -228,7 +249,7 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
     uint256[] memory modes = new uint256[](1);
     OneInchEarnDebtSwapAdapter.DebtSwapParams memory p;
     vm.prank(attacker);
-    vm.expectRevert(); // InitiatorNotAdapter bubbled through the pool
+    vm.expectRevert(OneInchEarnDebtSwapAdapter.InitiatorNotAdapter.selector);
     pool.flashLoan(address(adapter), assets, amounts, modes, attacker, abi.encode(p, attacker), 0);
   }
 
@@ -236,6 +257,15 @@ contract OneInchEarnDebtSwapSecurityTest is OneInchEarnTestBase {
 
   function _debt(address asset, address user) internal view returns (uint256) {
     return IERC20(pool.getReserveVariableDebtToken(asset)).balanceOf(user);
+  }
+
+  function _equityDelta(
+    uint256 colBefore,
+    uint256 debtBefore,
+    uint256 colAfter,
+    uint256 debtAfter
+  ) internal pure returns (int256) {
+    return (int256(colAfter) - int256(debtAfter)) - (int256(colBefore) - int256(debtBefore));
   }
 
   /// @dev Resolve the debt-token address BEFORE pranking (a getter call would otherwise consume
