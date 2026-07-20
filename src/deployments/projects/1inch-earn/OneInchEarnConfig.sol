@@ -44,7 +44,7 @@ library OneInchEarnConfig {
   string internal constant ATOKEN_NAME_PREFIX = '1inch Earn ';
   string internal constant ATOKEN_SYMBOL_PREFIX = '1x';
   string internal constant VDEBT_NAME_PREFIX = '1inch Earn Variable Debt ';
-  string internal constant VDEBT_SYMBOL_PREFIX = '1xDebt';
+  string internal constant VDEBT_SYMBOL_PREFIX = '1xd';
 
   // ------------------------------ Liquidator gate ------------------------------
 

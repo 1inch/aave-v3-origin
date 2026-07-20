@@ -13,7 +13,7 @@ import {OneInchEarnConfig} from './OneInchEarnConfig.sol';
  * @notice Base payload listing reserves on the 1inch Earn market with "1x" branding.
  * @dev The stock Aave config engine hardcodes the 'Aave ' / 'a' / 'variableDebt' token
  * prefixes inside `ListingEngine`, so this payload calls `PoolConfigurator.initReserves`
- * directly with 1inch Earn names (aToken `1xWETH`, debt token `1xDebtWETH`, ...). All
+ * directly with 1inch Earn names (aToken `1xWETH`, debt token `1xdWETH`, ...). All
  * audited v3.7 core files stay byte-identical; the deployed config engine remains usable
  * by governance for every name-agnostic update (caps, collateral, borrow, rates, eModes).
  *

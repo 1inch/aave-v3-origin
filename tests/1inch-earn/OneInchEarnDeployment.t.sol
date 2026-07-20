@@ -151,6 +151,6 @@ contract OneInchEarnDeploymentTest is OneInchEarnTestBase {
       'aToken symbol must be 1x-branded'
     );
     assertEq(IERC20Metadata(aToken).name(), string.concat('1inch Earn ', symbol), 'aToken name');
-    assertEq(IERC20Metadata(vToken).symbol(), string.concat('1xDebt', symbol), 'debt token symbol');
+    assertEq(IERC20Metadata(vToken).symbol(), string.concat('1xd', symbol), 'debt token symbol');
   }
 }
