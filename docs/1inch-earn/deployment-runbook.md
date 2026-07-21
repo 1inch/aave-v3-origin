@@ -73,14 +73,22 @@ LEDGER_SENDER=<ledger address>
 # transfer/swap, config verification — plus the mainnet-fork tests when RPC_MAINNET is set.
 RPC_MAINNET=<rpc> make test-1inch-earn
 
-# Anvil integration test (14 stages): runs the REAL deploy scripts (deploy -> list -> seed
+# Anvil integration test (17 stages): runs the REAL deploy scripts (deploy -> list -> seed
 # -> gate -> handover) against a mainnet-forked anvil node with a test key, then exercises
 # runtime scenarios on the live handed-over market via cast: post-handover DAO enabling debt
 # transfers (impersonation) + consent-based debt handoff; full supply/borrow/repay/withdraw
 # cycle; WrappedTokenGateway borrowETH/repayETH; supply-cap enforcement; NFT-gated liquidation
-# end-to-end (risk admin lowers LT to open a position, non-KYC blocked, KYC succeeds); and
-# guardian pause/freeze blocking pool actions. The closest rehearsal to the mainnet procedure
-# short of a Ledger. Forks a few blocks behind HEAD for reproducibility.
+# end-to-end (risk admin lowers LT, non-KYC blocked, KYC succeeds); guardian pause/freeze
+# blocking pool actions; and REAL-TOKEN multi-asset flows funded via a cast `deal_erc20`
+# (storage-slot write, no whales): cross-asset WBTC->USDC cycle, stablecoin-eMode USDC->USDT
+# boosted borrow, and a USDT<->USDC P2P debt swap through OneInchEarnDebtSwapAdapter. The
+# closest rehearsal to the mainnet procedure short of a Ledger.
+#
+# Determinism note: multiplexed public RPCs (the default publicnode) can transiently serve cold
+# fork storage, so the harness pins ~32 blocks behind HEAD, sends pool actions with an explicit
+# --gas-limit (skipping the flaky estimation eth_call), and gates progression on index-immune
+# scaledBalanceOf reads with a mine+poll retry. A dedicated single-node RPC removes all
+# nondeterminism. Override the pin with FORK_BLOCK=<n>.
 RPC_MAINNET=<rpc> make test-1inch-earn-anvil
 ```
 
