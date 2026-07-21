@@ -73,11 +73,14 @@ LEDGER_SENDER=<ledger address>
 # transfer/swap, config verification — plus the mainnet-fork tests when RPC_MAINNET is set.
 RPC_MAINNET=<rpc> make test-1inch-earn
 
-# Anvil integration test: runs the REAL deploy scripts (deploy -> list -> seed -> gate ->
-# handover) against a mainnet-forked anvil node with a test key, then simulates the
-# post-handover DAO enabling debt transfers (impersonation) and a live borrow +
-# consent-based debt-handoff journey via cast. This is the closest rehearsal to the
-# actual mainnet procedure short of using the Ledger.
+# Anvil integration test (14 stages): runs the REAL deploy scripts (deploy -> list -> seed
+# -> gate -> handover) against a mainnet-forked anvil node with a test key, then exercises
+# runtime scenarios on the live handed-over market via cast: post-handover DAO enabling debt
+# transfers (impersonation) + consent-based debt handoff; full supply/borrow/repay/withdraw
+# cycle; WrappedTokenGateway borrowETH/repayETH; supply-cap enforcement; NFT-gated liquidation
+# end-to-end (risk admin lowers LT to open a position, non-KYC blocked, KYC succeeds); and
+# guardian pause/freeze blocking pool actions. The closest rehearsal to the mainnet procedure
+# short of a Ledger. Forks a few blocks behind HEAD for reproducibility.
 RPC_MAINNET=<rpc> make test-1inch-earn-anvil
 ```
 

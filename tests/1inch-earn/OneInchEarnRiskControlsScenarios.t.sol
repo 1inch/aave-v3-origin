@@ -118,7 +118,11 @@ contract OneInchEarnRiskControlsScenariosTest is OneInchEarnTestBase {
     vm.stopPrank();
 
     // wstETH de-pegs down ~15% -> HF < 1 (LT 93% in eMode).
-    vm.mockCall(feeds.wstEth, abi.encodeWithSignature('latestAnswer()'), abi.encode(int256(3_300e8)));
+    vm.mockCall(
+      feeds.wstEth,
+      abi.encodeWithSignature('latestAnswer()'),
+      abi.encode(int256(3_300e8))
+    );
     (, , , , , uint256 hf) = pool.getUserAccountData(user);
     assertLt(hf, 1e18, 'eMode position underwater');
 

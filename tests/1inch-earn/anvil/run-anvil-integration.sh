@@ -33,9 +33,21 @@ cd "$(git rev-parse --show-toplevel)"
 pass() { echo "  PASS: $1"; }
 fail() { echo "  FAIL: $1"; exit 1; }
 assert_eq() { [ "$1" = "$2" ] || fail "$3 (expected '$2', got '$1')"; pass "$3"; }
+# Big-integer comparisons — token/debt/collateral amounts (~1e19) overflow bash's 64-bit ints.
+bn_ge() { python3 -c "import sys;sys.exit(0 if int(sys.argv[1])>=int(sys.argv[2]) else 1)" "$1" "$2"; }
+bn_gt() { python3 -c "import sys;sys.exit(0 if int(sys.argv[1])>int(sys.argv[2]) else 1)" "$1" "$2"; }
+bn_lt() { python3 -c "import sys;sys.exit(0 if int(sys.argv[1])<int(sys.argv[2]) else 1)" "$1" "$2"; }
 
 echo "== starting anvil (fork of mainnet) =="
-anvil --fork-url "$RPC" --port "$PORT" --auto-impersonate --silent &
+# Pin a few blocks behind HEAD: forking at the unstable chain tip can make the public RPC serve
+# briefly-inconsistent state (observed as spurious InsufficientDebt/gas-estimate reverts).
+FORK_BLOCK=""
+LATEST=$(cast block-number --rpc-url "$RPC" 2>/dev/null || true)
+if [ -n "$LATEST" ] && [ "$LATEST" -gt 64 ] 2>/dev/null; then
+  FORK_BLOCK="--fork-block-number $((LATEST - 32))"
+  echo "  pinning fork to block $((LATEST - 32)) (head $LATEST)"
+fi
+anvil --fork-url "$RPC" $FORK_BLOCK --port "$PORT" --auto-impersonate --silent &
 ANVIL_PID=$!
 trap 'kill $ANVIL_PID 2>/dev/null || true' EXIT
 for i in $(seq 1 40); do
@@ -59,6 +71,7 @@ POOL=$(jq -r .poolProxy "$REPORT")
 DP=$(jq -r .protocolDataProvider "$REPORT")
 ACL=$(jq -r .aclManager "$REPORT")
 GATEWAY=$(jq -r .wrappedTokenGateway "$REPORT")
+CONFIGURATOR=$(jq -r .poolConfiguratorProxy "$REPORT")
 [ "$(cast code "$POOL" --rpc-url "$URL" | wc -c)" -gt 4 ] || fail "pool proxy has no code"
 pass "market deployed (pool=$POOL)"
 
@@ -153,17 +166,135 @@ cast send "$VWETH" "transfer(address,uint256)" "$RECEIVER" 2ether --rpc-url "$UR
 
 RCV_DEBT=$(cast call "$VWETH" "balanceOf(address)(uint256)" "$RECEIVER" --rpc-url "$URL" | awk '{print $1}')
 BRW_DEBT=$(cast call "$VWETH" "balanceOf(address)(uint256)" "$BORROWER" --rpc-url "$URL" | awk '{print $1}')
-[ "$RCV_DEBT" -ge 2000000000000000000 ] 2>/dev/null || fail "receiver debt after handoff ($RCV_DEBT)"
+bn_ge "$RCV_DEBT" 2000000000000000000 || fail "receiver debt after handoff ($RCV_DEBT)"
 pass "receiver now owes ~2 WETH (1xdWETH=$RCV_DEBT)"
-[ "$BRW_DEBT" -lt 1100000000000000000 ] 2>/dev/null || fail "borrower residual debt after handoff ($BRW_DEBT)"
+bn_lt "$BRW_DEBT" 1100000000000000000 || fail "borrower residual debt after handoff ($BRW_DEBT)"
 pass "borrower residual debt ~1 WETH (1xdWETH=$BRW_DEBT)"
 
 # Both parties must be healthy after the handoff (HF is field 6 of getUserAccountData).
 for acct in "$BORROWER" "$RECEIVER"; do
   HF=$(cast call "$POOL" "getUserAccountData(address)(uint256,uint256,uint256,uint256,uint256,uint256)" "$acct" --rpc-url "$URL" | sed -n '6p' | awk '{print $1}')
-  [ "$HF" -gt 1000000000000000000 ] 2>/dev/null || fail "unhealthy account $acct (hf=$HF)"
+  bn_gt "$HF" 1000000000000000000 || fail "unhealthy account $acct (hf=$HF)"
 done
 pass "both parties healthy after debt handoff"
+
+# ---------------------------------------------------------------------------------------------
+# RUNTIME SCENARIOS on the live (handed-over) market. Admin actions use the impersonated DAO /
+# guardian / risk roles installed by the handover (anvil started with --auto-impersonate). All
+# scenarios are WETH-centric (wrappable from ETH) so they need no external token whales and are
+# fully deterministic against any fork block.
+# ---------------------------------------------------------------------------------------------
+DAO_ADMIN="--from $DAO --unlocked"
+GUARDIAN_ADMIN="--from $GUARDIAN --unlocked"
+RISK_ADMIN_F="--from $RISK --unlocked"
+cast rpc anvil_setBalance "$GUARDIAN" 0x8AC7230489E80000 --rpc-url "$URL" >/dev/null
+cast rpc anvil_setBalance "$RISK" 0x8AC7230489E80000 --rpc-url "$URL" >/dev/null
+
+# Anvil deterministic test accounts #3..#6.
+U3=0x90F79bf6EB2c4f870365E785982E1f101E93b906
+U3_PK=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
+U4=0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65
+U4_PK=0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a
+U5=0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc
+U5_PK=0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+U6=0x976EA74026E726554dB657fA54763abd0C3a0aa9
+U6_PK=0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e
+MAXU=$(cast max-uint)
+
+echo "== 9. full supply / borrow / repay / withdraw cycle (WETH) =="
+cast send "$WETH" "deposit()" --value 13ether --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+cast send "$WETH" "approve(address,uint256)" "$POOL" "$MAXU" --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 10ether "$U3" 0 --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+cast send "$POOL" "borrow(address,uint256,uint256,uint16,address)" "$WETH" 2ether 2 0 "$U3" --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+AWETH=$(cast call "$POOL" "getReserveAToken(address)(address)" "$WETH" --rpc-url "$URL")
+cast send "$POOL" "repay(address,uint256,uint256,address)" "$WETH" "$MAXU" 2 "$U3" --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+assert_eq "$(cast call "$VWETH" "balanceOf(address)(uint256)" "$U3" --rpc-url "$URL" | awk '{print $1}')" "0" "debt fully repaid"
+cast send "$POOL" "withdraw(address,uint256,address)" "$WETH" "$MAXU" "$U3" --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+assert_eq "$(cast call "$AWETH" "balanceOf(address)(uint256)" "$U3" --rpc-url "$URL" | awk '{print $1}')" "0" "collateral fully withdrawn (supply->borrow->repay->withdraw cycle)"
+
+echo "== 10. WrappedTokenGateway native-ETH borrow + repay =="
+cast send "$WETH" "deposit()" --value 10ether --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+cast send "$WETH" "approve(address,uint256)" "$POOL" "$MAXU" --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 10ether "$U4" 0 --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+cast send "$VWETH" "approveDelegation(address,uint256)" "$GATEWAY" 5ether --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+cast send "$GATEWAY" "borrowETH(address,uint256,uint16)" "$POOL" 3ether 0 --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+U4_DEBT=$(cast call "$VWETH" "balanceOf(address)(uint256)" "$U4" --rpc-url "$URL" | awk '{print $1}')
+bn_ge "$U4_DEBT" 3000000000000000000 || fail "gateway borrowETH did not open WETH debt ($U4_DEBT)"
+pass "borrowed 3 native ETH via gateway (debt=$U4_DEBT)"
+cast send "$GATEWAY" "repayETH(address,uint256,address)" "$POOL" "$MAXU" "$U4" --value 4ether --rpc-url "$URL" --private-key "$U4_PK" >/dev/null
+assert_eq "$(cast call "$VWETH" "balanceOf(address)(uint256)" "$U4" --rpc-url "$URL" | awk '{print $1}')" "0" "gateway repayETH cleared the ETH debt"
+
+# Capture WETH's original collateral params so admin-action stages can restore them (v3.7's
+# freeze zeroes a reserve's LTV, and LT-lowering below mutates it).
+WETH_LTV=$(cast call "$DP" "getReserveConfigurationData(address)(uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bool,bool)" "$WETH" --rpc-url "$URL" | sed -n '2p' | awk '{print $1}')
+WETH_LT=$(cast call "$DP" "getReserveConfigurationData(address)(uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bool,bool)" "$WETH" --rpc-url "$URL" | sed -n '3p' | awk '{print $1}')
+WETH_BONUS=$(cast call "$DP" "getReserveConfigurationData(address)(uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bool,bool)" "$WETH" --rpc-url "$URL" | sed -n '4p' | awk '{print $1}')
+restore_weth_collateral() {
+  cast send "$CONFIGURATOR" "configureReserveAsCollateral(address,uint256,uint256,uint256)" \
+    "$WETH" "$WETH_LTV" "$WETH_LT" "$WETH_BONUS" $RISK_ADMIN_F --rpc-url "$URL" >/dev/null
+}
+
+echo "== 11. supply cap enforcement (risk admin) =="
+ORIG_CAP=$(cast call "$DP" "getReserveCaps(address)(uint256,uint256)" "$WETH" --rpc-url "$URL" | sed -n '2p' | awk '{print $1}')
+cast send "$CONFIGURATOR" "setSupplyCap(address,uint256)" "$WETH" 1 $RISK_ADMIN_F --rpc-url "$URL" >/dev/null
+cast send "$WETH" "deposit()" --value 2ether --rpc-url "$URL" --private-key "$U3_PK" >/dev/null
+if cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 2ether "$U3" 0 --rpc-url "$URL" --private-key "$U3_PK" >/dev/null 2>&1; then
+  fail "supply above cap should have reverted"
+fi
+pass "supply above cap reverted (SupplyCapExceeded)"
+cast send "$CONFIGURATOR" "setSupplyCap(address,uint256)" "$WETH" "$ORIG_CAP" $RISK_ADMIN_F --rpc-url "$URL" >/dev/null # restore
+pass "supply cap restored to $ORIG_CAP"
+
+echo "== 12. NFT-gated liquidation end-to-end (risk admin lowers LT to open a position) =="
+# Borrower posts 10 WETH, borrows 8 WETH (80% base LTV).
+cast send "$WETH" "deposit()" --value 10ether --rpc-url "$URL" --private-key "$U5_PK" >/dev/null
+cast send "$WETH" "approve(address,uint256)" "$POOL" "$MAXU" --rpc-url "$URL" --private-key "$U5_PK" >/dev/null
+cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 10ether "$U5" 0 --rpc-url "$URL" --private-key "$U5_PK" >/dev/null
+cast send "$POOL" "borrow(address,uint256,uint256,uint16,address)" "$WETH" 7ether 2 0 "$U5" --rpc-url "$URL" --private-key "$U5_PK" >/dev/null
+# Risk admin drops WETH LT to 60% -> HF = 0.60*10/7 = 0.857 < 1 (ltv 59%, bonus 5%).
+cast send "$CONFIGURATOR" "configureReserveAsCollateral(address,uint256,uint256,uint256)" "$WETH" 5900 6000 10500 $RISK_ADMIN_F --rpc-url "$URL" >/dev/null
+U5_HF=$(cast call "$POOL" "getUserAccountData(address)(uint256,uint256,uint256,uint256,uint256,uint256)" "$U5" --rpc-url "$URL" | sed -n '6p' | awk '{print $1}')
+bn_lt "$U5_HF" 1000000000000000000 || fail "target not underwater (hf=$U5_HF)"
+pass "position pushed underwater (hf=$U5_HF)"
+
+# Liquidator (non-KYC) is blocked by the gate.
+cast send "$WETH" "deposit()" --value 10ether --rpc-url "$URL" --private-key "$U6_PK" >/dev/null
+cast send "$WETH" "approve(address,uint256)" "$POOL" "$MAXU" --rpc-url "$URL" --private-key "$U6_PK" >/dev/null
+if cast send "$POOL" "liquidationCall(address,address,address,uint256,bool)" "$WETH" "$WETH" "$U5" "$MAXU" false --rpc-url "$URL" --private-key "$U6_PK" >/dev/null 2>&1; then
+  fail "non-KYC liquidation should have reverted (gate)"
+fi
+pass "non-KYC liquidator blocked by the NFT gate"
+
+# KYC owner (SENDER) mints the liquidator an NFT; liquidation now succeeds and seizes collateral.
+cast send "$KYC" "mint(address,uint256)" "$U6" 100 --rpc-url "$URL" --private-key "$PK" >/dev/null
+U5_COLL_BEFORE=$(cast call "$AWETH" "balanceOf(address)(uint256)" "$U5" --rpc-url "$URL" | awk '{print $1}')
+cast send "$POOL" "liquidationCall(address,address,address,uint256,bool)" "$WETH" "$WETH" "$U5" "$MAXU" false --rpc-url "$URL" --private-key "$U6_PK" >/tmp/anvil-liq.log 2>&1 \
+  || { tail -3 /tmp/anvil-liq.log; fail "KYC liquidation reverted"; }
+U5_COLL_AFTER=$(cast call "$AWETH" "balanceOf(address)(uint256)" "$U5" --rpc-url "$URL" | awk '{print $1}')
+bn_lt "$U5_COLL_AFTER" "$U5_COLL_BEFORE" || fail "KYC liquidation seized no collateral (before=$U5_COLL_BEFORE after=$U5_COLL_AFTER)"
+pass "KYC liquidator liquidated the position (collateral $U5_COLL_BEFORE -> $U5_COLL_AFTER)"
+restore_weth_collateral # put WETH LTV/LT back
+pass "WETH collateral params restored (ltv=$WETH_LTV lt=$WETH_LT)"
+
+echo "== 13. guardian pause blocks all actions, then unpause =="
+cast send "$CONFIGURATOR" "setReservePause(address,bool)" "$WETH" true $GUARDIAN_ADMIN --rpc-url "$URL" >/dev/null
+if cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 1ether "$U3" 0 --rpc-url "$URL" --private-key "$U3_PK" >/dev/null 2>&1; then
+  fail "supply into paused reserve should have reverted"
+fi
+pass "supply into paused reserve reverted (ReservePaused)"
+cast send "$CONFIGURATOR" "setReservePause(address,bool)" "$WETH" false $GUARDIAN_ADMIN --rpc-url "$URL" >/dev/null
+pass "guardian unpaused WETH"
+
+echo "== 14. guardian freeze blocks new supply, then unfreeze (+ restore LTV) =="
+cast send "$CONFIGURATOR" "setReserveFreeze(address,bool)" "$WETH" true $GUARDIAN_ADMIN --rpc-url "$URL" >/dev/null
+if cast send "$POOL" "supply(address,uint256,address,uint16)" "$WETH" 1ether "$U3" 0 --rpc-url "$URL" --private-key "$U3_PK" >/dev/null 2>&1; then
+  fail "supply into frozen reserve should have reverted"
+fi
+pass "supply into frozen reserve reverted (ReserveFrozen)"
+cast send "$CONFIGURATOR" "setReserveFreeze(address,bool)" "$WETH" false $GUARDIAN_ADMIN --rpc-url "$URL" >/dev/null
+# v3.7 zeroes a reserve's LTV on freeze; governance must re-set collateral params after unfreeze.
+restore_weth_collateral
+assert_eq "$(cast call "$DP" "getReserveConfigurationData(address)(uint256,uint256,uint256,uint256,uint256,bool,bool,bool,bool,bool)" "$WETH" --rpc-url "$URL" | sed -n '2p' | awk '{print $1}')" "$WETH_LTV" "WETH LTV restored after unfreeze"
 
 echo ""
 echo "== ALL ANVIL INTEGRATION CHECKS PASSED =="
