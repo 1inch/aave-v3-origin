@@ -18,6 +18,13 @@ This repo is **Aave V3 Origin** — a Foundry-based Solidity smart-contract code
 - Single contract: `make test-contract filter=<ContractName>`
 - Lint: `npm run lint` (prettier check); `npm run lint:fix` to auto-format.
 - Coverage: `make coverage` (needs `lcov`/`genhtml`).
+- 1inch Earn tests: `make test-1inch-earn` (forge unit/e2e + mainnet-fork when `RPC_MAINNET` is set). `make test-1inch-earn-anvil` runs the 17-stage Anvil integration harness (`tests/1inch-earn/anvil/run-anvil-integration.sh`): the real deploy scripts + live runtime scenarios via `cast`, including real-token multi-asset flows.
+
+### Anvil integration harness conventions (`tests/1inch-earn/anvil/`)
+
+- **Fund real ERC20s with `deal_erc20 <token> <holder> <rawAmt>`** — the cast equivalent of forge's `deal`. It auto-detects the `balanceOf` mapping slot by probing base slots 0..30 and writes via `anvil_setStorageAt` (verified for WETH slot 3 / WBTC+wstETH slot 0 / USDT slot 2 / USDC+cbBTC slot 9). Use this instead of hunting for mainnet whales, whose balances drift and break reruns. `ensure_supply_weth` wraps real ETH (so WETH9 stays ETH-backed for gateway unwraps).
+- **Determinism on multiplexed public RPCs** (default `ethereum-rpc.publicnode.com`): the harness pins ~32 blocks behind HEAD (`FORK_BLOCK=<n>` to override), sends every pool action with an explicit `--gas-limit` so `cast` SKIPS the estimation `eth_call` (that estimation is what transiently reverts on a cold fork read), and gates progression on **index-immune `scaledBalanceOf`** reads (never `balanceOf`, which multiplies by a lazily-fetched reserve index that can read 0) with a mine+poll retry via the `ensure_*` helpers. Expect-revert checks deliberately keep estimation (no `--gas-limit`). A dedicated single-node RPC removes all nondeterminism.
+- When adding a scenario: reuse `ensure_supply`/`ensure_supply_weth`/`ensure_borrow`/`ensure_debt_cleared`/`ensure_withdrawn` (idempotent, effect-gated) rather than raw `cast send`, and assert with `bn_*`/`sbal`/`bal` helpers. Anvil default accounts #0..#9 are the available signers (#0 is the deployer/KYC owner).
 - Stateful fuzzing (invariants): `make echidna` / `make medusa`. These run **indefinitely** by design (`echidna_config.yaml` `testLimit: 20000000`; `medusa.json` `timeout: 0`), so run them in a background/tmux session and stop them manually. See the fuzzing gotcha below before relying on them.
 
 ### Agent skills
